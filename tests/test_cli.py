@@ -125,6 +125,16 @@ class Writing(CliTest):
         self.assertIn("Not a valid section name", self.fails(2, "save", "--create", "--", "../x"))
         self.assertEqual(os.listdir(self.box.folder), [])
 
+    def test_save_into_existing_notes_whose_names_a_new_section_could_not_have(self):
+        self.box.write("Git & GitHub.md", "start\n")
+        self.box.write("k8s.prod.md", "")
+        self.ok("save", "--stdin", "--", "Git & GitHub", stdin=b"git push")
+        self.ok("save", "--stdin", "--", "k8s.prod", stdin=b"kubectl get pods")
+        self.assertEqual(self.box.read("Git & GitHub.md"), "start\n\n## git push\n```\ngit push\n```\n")
+        self.assertEqual(self.box.read("k8s.prod.md"), "## kubectl get pods\n```\nkubectl get pods\n```\n")
+        self.assertIn("Not a valid section name", self.fails(2, "save", "--create", "--stdin", "--", "New & Old",
+                                                             stdin=b"x"))
+
     def test_save_from_stdin_uses_the_first_line_as_title(self):
         self.ok("save", "--create", "--stdin", "commands", stdin=b"\n  docker compose up -d\nsecond\n\n")
         self.assertEqual(self.box.read("commands.md"),

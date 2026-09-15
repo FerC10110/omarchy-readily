@@ -192,7 +192,9 @@ def _stamp(path):
 
 
 def check_section_target(folder, name, create):
-    if not valid_section_name(name):
+    # The name rule is for new sections. A note already in the folder keeps its
+    # name, whatever it is (names from the folder hold no / and are never ..).
+    if name not in section_names(folder) and not valid_section_name(name):
         raise ReadilyError(f"Not a valid section name: {name}", USAGE)
     path = section_path(folder, name)
     if os.path.islink(path):
