@@ -26,8 +26,29 @@ function normalize(value) {
   return out
 }
 
+// Characters with no letter case that are not letters or digits: Latin-1
+// punctuation and symbols (keeping ª ² ³ ¹ º ¼ ½ ¾), combining marks, general
+// punctuation through arrows and symbols, CJK and fullwidth punctuation,
+// surrogates and private use (emoji, Nerd Font glyphs). Everything else past
+// ASCII counts as a letter, so scripts without case (CJK, Arabic, Hebrew,
+// Thai…) work like Python's \w; the script still validates every save.
+var NON_WORD = [
+  [0x0080, 0x00A9], [0x00AB, 0x00B1], [0x00B4, 0x00B4], [0x00B6, 0x00B8], [0x00BB, 0x00BB],
+  [0x00BF, 0x00BF], [0x00D7, 0x00D7], [0x00F7, 0x00F7], [0x0300, 0x036F],
+  [0x2000, 0x2BFF], [0x2E00, 0x2E7F], [0x3000, 0x3004], [0x3008, 0x3020],
+  [0x3030, 0x3030], [0x303D, 0x303F], [0xD800, 0xF8FF], [0xFE00, 0xFE0F],
+  [0xFE30, 0xFE6F], [0xFF00, 0xFF0F], [0xFF1A, 0xFF20], [0xFF3B, 0xFF40],
+  [0xFF5B, 0xFF65], [0xFFF0, 0xFFFF]
+]
+
 function isLetterOrDigit(c) {
-  return /[A-Za-z0-9]/.test(c) || (c.charCodeAt(0) > 127 && c.toLowerCase() !== c.toUpperCase())
+  if (/[A-Za-z0-9]/.test(c)) return true
+  var code = c.charCodeAt(0)
+  if (code <= 127 || /\s/.test(c)) return false
+  if (c.toLowerCase() !== c.toUpperCase()) return true
+  for (var i = 0; i < NON_WORD.length; i++)
+    if (code >= NON_WORD[i][0] && code <= NON_WORD[i][1]) return false
+  return true
 }
 
 function normalizeTag(value) {

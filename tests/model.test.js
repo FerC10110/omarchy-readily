@@ -31,16 +31,23 @@ test("normalizeTag mirrors the script", () => {
   assert.equal(Model.normalizeTag("a+b!c"), "abc")
   assert.equal(Model.normalizeTag("Configuración"), "configuración")
   for (const bad of ["", "#", "123", "1/2", "!!!"]) assert.equal(Model.normalizeTag(bad), "", bad)
+  assert.equal(Model.normalizeTag("日本語"), "日本語")
+  assert.equal(Model.normalizeTag("#→"), "")
+  assert.equal(Model.normalizeTag(""), "")
 })
 
 test("validSectionName mirrors the script", () => {
   for (const good of ["chi", "Comandos de Pepe", "configuración_2", "a-b", "1st"]) assert.ok(Model.validSectionName(good), good)
   for (const bad of ["", " lead", "trail ", "../x", "a/b", "_x", "-x", "dot.name", "x".repeat(65)]) assert.ok(!Model.validSectionName(bad), bad)
+  assert.equal(Model.validSectionName("日本語"), true)
+  assert.equal(Model.validSectionName("Hello 日本"), true)
+  assert.equal(Model.validSectionName("→ x"), false)
 })
 
 test("parseQuery splits tags from words", () => {
   assert.deepEqual(Model.parseQuery("  #Chi kubectl #pepe/ GET "), { tags: ["chi", "pepe"], words: ["kubectl", "get"] })
   assert.deepEqual(Model.parseQuery("# x #123"), { tags: [], words: ["x"] })
+  assert.deepEqual(Model.parseQuery("#日本 x").tags, ["日本"])
 })
 
 test("tagMatches handles nesting and case", () => {
