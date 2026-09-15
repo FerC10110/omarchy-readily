@@ -313,40 +313,13 @@ Item {
       Keys.onPressed: function(event) { view.handleKey(event, tagField) }
     }
 
-    Column {
+    TagSuggestions {
       width: parent.width
-      visible: view.suggestions.length > 0
-      spacing: Style.space(2)
-
-      Repeater {
-        model: view.suggestions
-
-        Rectangle {
-          required property var modelData
-          required property int index
-          width: parent.width
-          height: suggestionText.implicitHeight + Style.space(6)
-          radius: Style.cornerRadius
-          color: index === view.suggestion ? Style.selectionFillFor(view.fg, Color.accent) : "transparent"
-
-          Text {
-            id: suggestionText
-            x: Style.space(8)
-            anchors.verticalCenter: parent.verticalCenter
-            text: "#" + modelData.name + "   " + modelData.count
-            textFormat: Text.PlainText
-            color: view.fg
-            font.family: view.family
-            font.pixelSize: Style.font.bodySmall
-          }
-
-          MouseArea {
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            onClicked: view.acceptSuggestion(index)
-          }
-        }
-      }
+      suggestions: view.suggestions
+      current: view.suggestion
+      foreground: view.fg
+      fontFamily: view.family
+      onPicked: function(index) { view.acceptSuggestion(index) }
     }
 
     Text {
