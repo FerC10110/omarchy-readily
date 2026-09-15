@@ -134,9 +134,9 @@ Panel {
     copyCmd.start(["copy", "--", row.section, String(row.item.index), row.item.hash])
   }
 
-  function openSection() {
-    if (section === Model.ALL || openCmd.running) return
-    openCmd.start(["open", "--", section])
+  function openSection(name) {
+    if (!name || name === Model.ALL || openCmd.running) return
+    openCmd.start(["open", "--", name])
   }
 
   function openForSave() {

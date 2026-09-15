@@ -23,6 +23,9 @@ Item {
   readonly property string sectionKey: host ? host.section : Model.ALL
   readonly property var tabs: Model.sectionTabs(sections)
   readonly property var rows: Model.filterItems(sections, sectionKey, host ? host.query : "")
+  // The section Ctrl+O and the Obsidian button open: the current tab, or on All the selected item's.
+  readonly property string openTarget: sectionKey !== Model.ALL ? sectionKey
+    : (rows[selected] ? rows[selected].section : "")
   readonly property string sectionError: {
     for (var i = 0; i < sections.length; i++)
       if (sections[i].name === sectionKey) return sections[i].error || ""
@@ -125,7 +128,7 @@ Item {
     } else if (ctrl && event.key === Qt.Key_S) {
       host.startSave()
     } else if (ctrl && event.key === Qt.Key_O) {
-      host.openSection()
+      host.openSection(openTarget)
     } else if (event.key === Qt.Key_Down) {
       moveSelection(1)
     } else if (event.key === Qt.Key_Up) {
@@ -185,12 +188,12 @@ Item {
           text: "Obsidian"
           iconText: "󰏌"
           bordered: true
-          enabled: view.sectionKey !== Model.ALL
+          enabled: view.openTarget !== ""
           opacity: enabled ? 1 : 0.55
-          tooltipText: enabled ? "Open " + view.sectionKey + " (Ctrl+O)" : "Pick a section to open it"
+          tooltipText: enabled ? "Open " + view.openTarget + " (Ctrl+O)" : "Nothing to open yet"
           foreground: view.fg
           fontFamily: view.family
-          onClicked: view.host.openSection()
+          onClicked: view.host.openSection(view.openTarget)
         }
       }
     }

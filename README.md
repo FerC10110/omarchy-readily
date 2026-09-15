@@ -128,7 +128,7 @@ In the list:
 | `Tab` | complete the suggested tag |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | next / previous section |
 | `Ctrl+S` | save what is copied |
-| `Ctrl+O` | open the section in Obsidian, or in your default app outside a vault |
+| `Ctrl+O` | open the section (on All, the selected item's) in Obsidian; outside a vault, in the editor Omarchy uses |
 | `Esc` | clear the search; close when it is already empty |
 
 While saving:
@@ -176,7 +176,7 @@ readily tags                         # every tag and how many items have it
 readily save commands --title "Pods" --tag chi   # save what is copied
 some-command | readily save commands --stdin --create --tag chi
 readily copy commands 3 HASH         # HASH comes from `readily list --json`
-readily open commands                # open the note in Obsidian
+readily open commands                # open the note in Obsidian (or your editor)
 readily where                        # which folder is used and why
 readily init ~/Notes/Readily         # use another folder
 ```
