@@ -81,6 +81,8 @@ Sections say what kind of thing an item is; tags say what it belongs to. Tag the
 commands, links and screenshots of one project with `#chi`, and one search shows
 all of them, whatever section they are in.
 
+![Filtering by #chi across sections](screenshots/tags.png)
+
 They are ordinary Obsidian tags, so Obsidian lists them in its tag pane too:
 
 - A tag line under the heading (`#kubernetes #chi/db`), a tag at the end of the
@@ -94,6 +96,8 @@ They are ordinary Obsidian tags, so Obsidian lists them in its tag pane too:
   nothing inside a code block is read as one.
 
 ## Saving and copying back
+
+![Saving a copied command into k8s.prod](screenshots/save.png)
 
 Copy something, open the panel and press **Save** (`Ctrl+S`). The form shows
 what is on the clipboard and asks for:
