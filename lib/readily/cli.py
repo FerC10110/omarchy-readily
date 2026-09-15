@@ -272,5 +272,11 @@ def main(argv=None):
     except ReadilyError as e:
         print(f"readily: {e}", file=sys.stderr)
         return e.code
+    except OSError as e:
+        message = e.strerror or str(e)
+        if e.filename:
+            message += f": {e.filename}"
+        print(f"readily: {message}", file=sys.stderr)
+        return 1
     except KeyboardInterrupt:
         return 130

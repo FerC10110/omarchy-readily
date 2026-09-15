@@ -7,6 +7,7 @@ import tempfile
 from contextlib import contextmanager
 from dataclasses import dataclass
 
+from .clipboard import human_size
 from .config import runtime_dir, vault_root
 from .errors import USAGE, ReadilyError
 from .notes import append_block, parse_note
@@ -67,7 +68,7 @@ def read_section(folder, name):
         return section
     try:
         if os.path.getsize(section.path) > MAX_NOTE_BYTES:
-            section.error = f"{name}.md is larger than 2 MiB"
+            section.error = f"{name}.md is larger than {human_size(MAX_NOTE_BYTES)}"
             return section
         with open(section.path, "rb") as f:
             text = f.read().decode("utf-8")
@@ -222,16 +223,20 @@ def append_to_section(folder, name, block, create=False):
             existing = ""
             if before is not None:
                 if before[1] > MAX_NOTE_BYTES:
-                    raise ReadilyError(f"{name}.md is larger than 2 MiB")
+                    raise ReadilyError(f"{name}.md is larger than {human_size(MAX_NOTE_BYTES)}")
                 try:
                     with open(path, "rb") as f:
                         existing = f.read().decode("utf-8")
                 except UnicodeDecodeError:
                     raise ReadilyError(f"{name}.md is not UTF-8 text")
+            content = append_block(existing, block)
+            if len(content.encode("utf-8")) > MAX_NOTE_BYTES:
+                raise ReadilyError(f"{name}.md would be larger than {human_size(MAX_NOTE_BYTES)}; "
+                                   "save it in another section")
             fd, tmp = tempfile.mkstemp(prefix=".readily-", suffix=".tmp", dir=folder)
             try:
                 with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
-                    f.write(append_block(existing, block))
+                    f.write(content)
                     f.flush()
                     os.fsync(f.fileno())
                 os.chmod(tmp, (before[2] & 0o777) if before else 0o644)

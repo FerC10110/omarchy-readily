@@ -167,6 +167,28 @@ class Appending(StoreTest):
         self.assertEqual(self.box.read("busy.md"), "start\n")
         self.assertEqual([n for n in os.listdir(self.folder) if n.startswith(".readily-")], [])
 
+    def test_an_append_past_the_note_limit_is_refused(self):
+        self.box.write("commands.md", "x" * 10)
+        block = "y\n"  # the note would become "x" * 10 + "\n\n" + block: 14 bytes
+        with mock.patch.object(store, "MAX_NOTE_BYTES", 13):
+            with self.assertRaises(ReadilyError) as caught:
+                append_to_section(self.folder, "commands", block)
+        self.assertIn("would be larger than", str(caught.exception))
+        self.assertEqual(self.box.read("commands.md"), "x" * 10)
+        with mock.patch.object(store, "MAX_NOTE_BYTES", 14):
+            append_to_section(self.folder, "commands", block)
+        self.assertEqual(self.box.read("commands.md"), "x" * 10 + "\n\n" + block)
+
+    def test_the_note_limit_message_names_the_limit(self):
+        big = "x" * (store.MAX_NOTE_BYTES - 4) + "\n"
+        self.box.write("commands.md", big)
+        with self.assertRaises(ReadilyError) as caught:
+            append_to_section(self.folder, "commands", "## B\n```\nb\n```\n")
+        self.assertEqual((str(caught.exception), caught.exception.code),
+                         ("commands.md would be larger than 2 MiB; save it in another section", 1))
+        self.assertEqual(self.box.read("commands.md"), big)
+        self.assertEqual([n for n in os.listdir(self.folder) if n.startswith(".readily-")], [])
+
     def test_non_utf8_note_is_refused(self):
         self.box.write_bytes("bad.md", b"\xff")
         with self.assertRaises(ReadilyError) as caught:

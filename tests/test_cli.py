@@ -13,9 +13,9 @@ from support import note
 class CliTest(unittest.TestCase):
     def setUp(self):
         self.box = support.Sandbox()
-
-    def tearDown(self):
-        self.box.cleanup()
+        # A cleanup, not tearDown, so cleanups a test adds (like restoring a
+        # folder's permissions) run before the sandbox is removed.
+        self.addCleanup(self.box.cleanup)
 
     def ok(self, *args, **kw):
         result = self.box.run(*args, **kw)
@@ -202,6 +202,38 @@ class Writing(CliTest):
             proc.stderr.close()
         saved = [i["search"] for i in self.json("list", "--json")["sections"][0]["items"]]
         self.assertEqual(sorted(saved), sorted(texts))
+
+
+@unittest.skipIf(os.geteuid() == 0, "root can write into a read-only folder")
+class FilesystemErrors(CliTest):
+    def lock_folder(self):
+        os.chmod(self.box.folder, 0o555)
+        self.addCleanup(os.chmod, self.box.folder, 0o755)
+
+    def one_line(self, err):
+        self.assertEqual(len(err.splitlines()), 1, err)
+        self.assertTrue(err.startswith("readily: "), err)
+
+    def test_a_read_only_folder_is_one_error_line(self):
+        self.box.write("commands.md", "start\n")
+        self.lock_folder()
+        err = self.fails(1, "save", "--stdin", "commands", stdin=b"ls")
+        self.one_line(err)
+        self.assertIn("Permission denied: " + self.box.folder, err)
+        self.assertEqual(self.box.read("commands.md"), "start\n")
+
+    def test_a_failed_append_removes_the_image_it_stored(self):
+        self.box.write("shots.md", "start\n")
+        attachments = os.path.join(self.box.folder, "attachments")
+        os.makedirs(attachments)
+        self.lock_folder()
+        self.box.copy_bytes("image/png", support.PNG)
+        err = self.fails(1, "save", "shots")
+        self.one_line(err)
+        # The image was stored; the note's temporary file is what failed.
+        self.assertIn(os.path.join(self.box.folder, ".readily-"), err)
+        self.assertEqual(os.listdir(attachments), [])
+        self.assertEqual(self.box.read("shots.md"), "start\n")
 
 
 if __name__ == "__main__":
