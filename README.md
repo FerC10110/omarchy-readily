@@ -65,7 +65,8 @@ time it opens.
 How notes are read:
 
 - Code blocks can use ` ``` ` or `~~~`, longer fences, and info strings. A block
-  without a closing fence runs to the end of the note.
+  without a closing fence runs to the end of the note; saving to that note
+  closes it first, so the new item stays out of it.
 - An item without a heading takes its first line as the title.
 - Several blocks under one heading share that heading as their title.
 - Images can be `![](path.png)`, relative to the note, or Obsidian's
@@ -83,7 +84,9 @@ all of them, whatever section they are in.
 They are ordinary Obsidian tags, so Obsidian lists them in its tag pane too:
 
 - A tag line under the heading (`#kubernetes #chi/db`), a tag at the end of the
-  heading, or a tag inside a description tags that item.
+  heading, or a tag inside a description tags that item. Headings read as in
+  Obsidian, so a title saved as `Deploy #chi` comes back as `Deploy` tagged
+  `#chi`, and `Learn C #` as `Learn C`.
 - `tags:` in a note's frontmatter tags every item in the note. The panel shows
   those tags dimmer.
 - Nested tags work as in Obsidian: filtering by `#chi` also finds `#chi/db`.
@@ -98,8 +101,9 @@ what is on the clipboard and asks for:
 - **Title**, optional. Text defaults to its first line, images to the date.
 - **Tags**, optional. They start with the tags you are filtering by, or the
   ones you used last time.
-- **Section**: pick one, or **+ New section** to create it. Names use letters,
-  digits, spaces, `-` and `_`.
+- **Section**: pick one, or **+ New section** to create it. New section names
+  use letters, digits, spaces, `-` and `_`, and cannot differ from an existing
+  one only in case; notes already in the folder keep whatever name they have.
 
 Text is saved exactly as copied, except for trailing line breaks, so pasting a
 saved command into a terminal never runs it on its own. Images go to
@@ -180,7 +184,7 @@ Every command takes `-h`, and `list`, `tags`, `where`, `vaults` and `peek` take
 
 | Variable | Default | What it does |
 |---|---|---|
-| `READILY_DIR` | the folder you chose | Use this folder instead, for this process only |
+| `READILY_DIR` | the folder you chose | Use this folder instead, for this process only. While it is set, choosing another folder (in the panel or with `readily init`) is refused |
 | `READILY_MAX_TEXT_BYTES` | `262144` (256 KiB) | Largest text Readily saves |
 | `READILY_MAX_IMAGE_BYTES` | `20971520` (20 MiB) | Largest image Readily saves |
 | `READILY_CLIP_TIMEOUT` | `2` | Seconds to wait for the app that owns the clipboard |
@@ -204,8 +208,11 @@ The folder you choose is stored in `~/.config/readily/config.json`.
   an image over the size limits. Nothing is ever cut short.
 - Saving only appends to a note, through a temporary file renamed into place
   under a lock. If the note changes while saving, Readily reads it again.
-- It only writes inside the chosen folder, never through a symbolic link, and
-  never replaces an existing attachment.
+- Notes and attachments are only written inside the chosen folder, never
+  through a symbolic link, and an existing attachment is never replaced.
+  Outside that folder Readily writes only `~/.config/readily/config.json` and
+  `$XDG_RUNTIME_DIR/readily`, which holds its lock and a copy of the last
+  clipboard image it previewed until the next preview or until you log out.
 - Nothing leaves your machine.
 
 ## Remove
