@@ -7,7 +7,7 @@ them describes it, and #tags there (or in the note's frontmatter) label it.
 import os
 import re
 from dataclasses import dataclass, field
-from urllib.parse import unquote
+from urllib.parse import quote, unquote
 
 from .tags import find_tags, frontmatter_tags, is_tag_line, strip_trailing_tags, unique
 
@@ -139,3 +139,45 @@ def parse_note(text):
                 description.append(stripped)
         i += 1
     return note
+
+
+def strip_trailing_newlines(text):
+    """Drop the line breaks at the end, so pasting a command does not run it."""
+    return re.sub(r"[\r\n]+\Z", "", text)
+
+
+def clean_title(title):
+    return " ".join((title or "").split())[:TITLE_WRITE_MAX]
+
+
+def fence_for(content):
+    """Backticks one longer than any run inside the content, and at least three."""
+    longest = max((len(run) for run in re.findall(r"`+", content)), default=0)
+    return "`" * max(3, longest + 1)
+
+
+def _heading_lines(title, tags):
+    lines = ["## " + title]
+    if tags:
+        lines.append(" ".join("#" + tag for tag in tags))
+    return lines
+
+
+def render_text_item(title, tags, content):
+    fence = fence_for(content)
+    return "\n".join(_heading_lines(title, tags) + [fence, content, fence]) + "\n"
+
+
+def render_image_item(title, tags, relpath):
+    return "\n".join(_heading_lines(title, tags) + ["![](" + quote(relpath) + ")"]) + "\n"
+
+
+def append_block(existing, block):
+    """The note with the block added at the end, one blank line after what was there."""
+    if not existing:
+        return block
+    if not existing.endswith("\n"):
+        existing += "\n"
+    if not existing.endswith("\n\n"):
+        existing += "\n"
+    return existing + block

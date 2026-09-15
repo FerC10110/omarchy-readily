@@ -1,7 +1,8 @@
 import unittest
 
 from support import note
-from readily.notes import parse_note
+from readily.notes import (append_block, clean_title, fence_for, parse_note, render_image_item,
+                           render_text_item, strip_trailing_newlines)
 
 
 class Reading(unittest.TestCase):
@@ -89,6 +90,58 @@ class ReadingImages(unittest.TestCase):
     def test_image_without_heading_takes_its_file_name(self):
         [item] = parse_note(note("![](attachments/chi-1.png)")).items
         self.assertEqual(item.title, "chi-1.png")
+
+
+class Writing(unittest.TestCase):
+    def test_text_item_layout(self):
+        self.assertEqual(render_text_item("Pods", ["chi", "k8s"], "kubectl get pods"),
+                         "## Pods\n#chi #k8s\n```\nkubectl get pods\n```\n")
+
+    def test_no_tag_line_without_tags(self):
+        self.assertEqual(render_text_item("Pods", [], "x"), "## Pods\n```\nx\n```\n")
+
+    def test_fence_grows_past_backticks_in_content(self):
+        self.assertEqual(fence_for("a ``` b"), "````")
+        self.assertEqual(fence_for("plain"), "```")
+
+    def test_image_item_layout(self):
+        self.assertEqual(render_image_item("Map", ["chi"], "attachments/chi-1.png"),
+                         "## Map\n#chi\n![](attachments/chi-1.png)\n")
+
+    def test_append_keeps_one_blank_line(self):
+        block = "## B\n```\nb\n```\n"
+        self.assertEqual(append_block("", block), block)
+        self.assertEqual(append_block("x", block), "x\n\n" + block)
+        self.assertEqual(append_block("x\n", block), "x\n\n" + block)
+        self.assertEqual(append_block("x\n\n", block), "x\n\n" + block)
+
+    def test_titles_and_trailing_newlines(self):
+        self.assertEqual(clean_title("  two\nlines\t here "), "two lines here")
+        self.assertEqual(len(clean_title("y" * 300)), 120)
+        self.assertEqual(clean_title(None), "")
+        self.assertEqual(strip_trailing_newlines("ls -la\n\r\n"), "ls -la")
+        self.assertEqual(strip_trailing_newlines("keep  \n"), "keep  ")
+
+
+class RoundTrip(unittest.TestCase):
+    SAMPLES = [
+        "kubectl get pods -A",
+        "echo 'año ñandú 🚀'",
+        "line one\n\n\tindented with a tab\ntrailing spaces   ",
+        "```\nnested block\n```",
+        "~~~\ntilde lines\n~~~",
+        "    four leading spaces\n# not a heading\n#notatag",
+        "a ```` b ` c",
+    ]
+
+    def test_what_is_written_reads_back_the_same(self):
+        text = ""
+        for n, sample in enumerate(self.SAMPLES):
+            text = append_block(text, render_text_item(f"Sample {n}", ["t"], sample))
+        items = parse_note(text).items
+        self.assertEqual([i.content for i in items], self.SAMPLES)
+        self.assertEqual([i.title for i in items], [f"Sample {n}" for n in range(len(self.SAMPLES))])
+        self.assertEqual([i.tags for i in items], [["t"]] * len(self.SAMPLES))
 
 
 if __name__ == "__main__":
