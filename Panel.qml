@@ -39,9 +39,9 @@ Panel {
   readonly property color urgent: bar ? bar.urgent : Color.urgent
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
-  readonly property real currentHeight: view === "setup" ? setupView.implicitHeight
+  readonly property real currentHeight: view === "setup" ? folderView.implicitHeight
     : (view === "save" ? saveView.implicitHeight : itemsView.implicitHeight)
-  readonly property Item currentFocus: view === "setup" ? setupView.focusItem
+  readonly property Item currentFocus: view === "setup" ? folderView.focusItem
     : (view === "save" ? saveView.focusItem : itemsView.focusItem)
 
   // Absolute path of a file shipped inside this plugin, wherever it is installed.
@@ -193,7 +193,7 @@ Panel {
     onFinished: function(code, out, err) {
       var data = root.parseJson(out)
       root.suggestions = data && Array.isArray(data.suggestions) ? data.suggestions : []
-      setupView.resetChoice()
+      folderView.resetChoice()
     }
   }
 
@@ -294,8 +294,8 @@ Panel {
     contentWidth: panel.fittedContentWidth(Style.space(420))
     contentHeight: panel.fittedContentHeight(root.currentHeight, Style.space(640))
 
-    SetupView {
-      id: setupView
+    FolderView {
+      id: folderView
       anchors.fill: parent
       visible: root.view === "setup"
       host: root
