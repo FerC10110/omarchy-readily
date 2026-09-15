@@ -74,16 +74,45 @@ def _image_ref(line):
     return ref, style
 
 
-def parse_note(text):
-    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-    note = Note()
-    i = 0
+def _lines(text):
+    return text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+
+
+def _frontmatter_end(lines):
+    """The index of the first line after the frontmatter, or 0 when there is none."""
     if lines and lines[0].strip() == "---":
         for end in range(1, len(lines)):
             if lines[end].strip() == "---":
-                note.tags = frontmatter_tags(lines[1:end])
-                i = end + 1
-                break
+                return end + 1
+    return 0
+
+
+def _opening_fence(line):
+    """(indent, marker) when the line opens a fenced block, else None.
+
+    A backtick fence whose info string holds a backtick is inline code, not a fence.
+    """
+    fence = _FENCE.match(line)
+    if not fence or (fence.group(2)[0] == "`" and "`" in fence.group(3)):
+        return None
+    return len(fence.group(1)), fence.group(2)
+
+
+def _block_end(lines, start, marker):
+    """The index of the line closing the block opened at lines[start], or len(lines)."""
+    closing = re.compile(r"^ {0,3}" + re.escape(marker[0]) + "{" + str(len(marker)) + r",}[ \t]*$")
+    end = start + 1
+    while end < len(lines) and not closing.match(lines[end]):
+        end += 1
+    return end
+
+
+def parse_note(text):
+    lines = _lines(text)
+    note = Note()
+    i = _frontmatter_end(lines)
+    if i:
+        note.tags = frontmatter_tags(lines[1:i - 1])
 
     heading_title, heading_tags = "", []
     description, line_tags = [], []
@@ -102,18 +131,13 @@ def parse_note(text):
     while i < len(lines):
         line = lines[i]
 
-        fence = _FENCE.match(line)
-        if fence and not (fence.group(2)[0] == "`" and "`" in fence.group(3)):
-            indent, marker = len(fence.group(1)), fence.group(2)
-            closing = re.compile(r"^ {0,3}" + re.escape(marker[0]) + "{" + str(len(marker)) + r",}[ \t]*$")
-            body = []
-            i += 1
-            while i < len(lines) and not closing.match(lines[i]):
-                body.append(_dedent(lines[i], indent))
-                i += 1
-            content = "\n".join(body)
+        fence = _opening_fence(line)
+        if fence:
+            indent, marker = fence
+            end = _block_end(lines, i, marker)
+            content = "\n".join(_dedent(body_line, indent) for body_line in lines[i + 1:end])
             add("text", first_line(content), content=content)
-            i += 1
+            i = end + 1
             continue
 
         heading = _HEADING.match(line)
@@ -172,12 +196,34 @@ def render_image_item(title, tags, relpath):
     return "\n".join(_heading_lines(title, tags) + ["![](" + quote(relpath) + ")"]) + "\n"
 
 
+def _unclosed_fence(text):
+    """(indent, marker) of a block that runs to the end of the text, else None."""
+    lines = _lines(text)
+    i = _frontmatter_end(lines)
+    while i < len(lines):
+        fence = _opening_fence(lines[i])
+        if fence:
+            i = _block_end(lines, i, fence[1])
+            if i == len(lines):
+                return fence
+        i += 1
+    return None
+
+
 def append_block(existing, block):
-    """The note with the block added at the end, one blank line after what was there."""
+    """The note with the block added at the end, one blank line after what was there.
+
+    A block left open at the end (Obsidian may have saved mid-typing) gets a
+    closing fence like its opener first, so the new item does not end up inside it.
+    """
     if not existing:
         return block
     if not existing.endswith("\n"):
         existing += "\n"
+    fence = _unclosed_fence(existing)
+    if fence:
+        indent, marker = fence
+        existing += " " * indent + marker + "\n"
     if not existing.endswith("\n\n"):
         existing += "\n"
     return existing + block

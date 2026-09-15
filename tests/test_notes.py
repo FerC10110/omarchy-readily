@@ -115,6 +115,23 @@ class Writing(unittest.TestCase):
         self.assertEqual(append_block("x\n", block), "x\n\n" + block)
         self.assertEqual(append_block("x\n\n", block), "x\n\n" + block)
 
+    def test_append_closes_a_block_left_open(self):
+        text = append_block("## Old\n```\nold stuff\n", render_text_item("New", [], "x"))
+        self.assertEqual(text, "## Old\n```\nold stuff\n```\n\n## New\n```\nx\n```\n")
+        self.assertEqual([(i.title, i.content) for i in parse_note(text).items], [("Old", "old stuff"), ("New", "x")])
+
+    def test_the_closing_fence_matches_the_opener(self):
+        block = render_text_item("New", [], "x")
+        self.assertEqual(append_block("  ~~~~ sh\nrun", block), "  ~~~~ sh\nrun\n  ~~~~\n\n" + block)
+        self.assertEqual(append_block("````\n```\ninner", block), "````\n```\ninner\n````\n\n" + block)
+
+    def test_balanced_or_ignored_fences_add_nothing(self):
+        block = render_text_item("New", [], "x")
+        # Closed blocks, inline code on a fence-like line, a fence inside frontmatter, a 4-space indent.
+        for existing in ("## A\n```\na\n```", "~~~\n```\n~~~\n", "```ls``` inline\n",
+                         "---\n```\n---\n", "    ```\nindented code, not a fence\n"):
+            self.assertEqual(append_block(existing, block), existing.rstrip("\n") + "\n\n" + block, existing)
+
     def test_titles_and_trailing_newlines(self):
         self.assertEqual(clean_title("  two\nlines\t here "), "two lines here")
         self.assertEqual(len(clean_title("y" * 300)), 120)
