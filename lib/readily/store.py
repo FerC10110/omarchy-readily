@@ -212,6 +212,8 @@ def append_to_section(folder, name, block, create=False):
     path = check_section_target(folder, name, create)
     with locked():
         for _ in range(3):
+            if os.path.islink(path):
+                raise ReadilyError(f"{name}.md is a link; edit it in Obsidian")
             before = _stamp(path)
             if before is None and not create:
                 raise ReadilyError(f"There is no section named {name}; add --create to make it")
@@ -234,6 +236,8 @@ def append_to_section(folder, name, block, create=False):
                 if _stamp(path) != before:
                     os.unlink(tmp)
                     continue
+                if os.path.islink(path):
+                    raise ReadilyError(f"{name}.md is a link; edit it in Obsidian")
                 os.replace(tmp, path)
                 return path
             except BaseException:

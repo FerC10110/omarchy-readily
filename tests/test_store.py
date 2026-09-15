@@ -6,7 +6,7 @@ from unittest import mock
 import support
 from support import note
 from readily import store
-from readily.errors import ReadilyError
+from readily.errors import ReadilyError, USAGE
 from readily.store import append_to_section, list_payload, section_names, valid_section_name, write_attachment
 
 
@@ -172,6 +172,38 @@ class Appending(StoreTest):
         with self.assertRaises(ReadilyError) as caught:
             append_to_section(self.folder, "bad", "x\n")
         self.assertIn("not UTF-8", str(caught.exception))
+
+    def test_symlink_race_is_detected_under_the_lock(self):
+        """A section that becomes a symlink after pre-lock check is caught before writing."""
+        target = self.box.write_bytes(os.path.join(self.box.root, "elsewhere.md"), b"target")
+        self.box.write("original.md", "start\n")
+        original_path = os.path.join(self.folder, "original.md")
+
+        real_stamp = store._stamp
+        calls = {"n": 0}
+
+        def stamp_then_symlink(path):
+            """On first call to _stamp inside locked block, replace with symlink before returning."""
+            result = real_stamp(path)
+            if path == original_path and result is not None:
+                calls["n"] += 1
+                if calls["n"] == 1:
+                    # Replace with symlink on first _stamp call inside lock
+                    os.unlink(original_path)
+                    os.symlink(target, original_path)
+            return result
+
+        with mock.patch.object(store, "_stamp", side_effect=stamp_then_symlink):
+            with self.assertRaises(ReadilyError) as caught:
+                append_to_section(self.folder, "original", "x\n")
+
+        self.assertIn("is a link", str(caught.exception))
+        self.assertEqual(caught.exception.code, 1)  # General error, same as check_section_target
+        # Verify symlink and target unchanged
+        self.assertTrue(os.path.islink(original_path))
+        self.assertEqual(os.readlink(original_path), target)
+        # Verify no temp file remains
+        self.assertEqual([n for n in os.listdir(self.folder) if n.startswith(".readily-")], [])
 
 
 class Attachments(StoreTest):
