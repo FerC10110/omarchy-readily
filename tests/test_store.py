@@ -1,3 +1,4 @@
+import datetime
 import os
 import unittest
 from unittest import mock
@@ -5,7 +6,8 @@ from unittest import mock
 import support
 from support import note
 from readily import store
-from readily.store import list_payload, section_names
+from readily.errors import ReadilyError
+from readily.store import append_to_section, list_payload, section_names, valid_section_name, write_attachment
 
 
 class StoreTest(unittest.TestCase):
@@ -108,6 +110,79 @@ class Images(StoreTest):
         self.box.write_bytes(os.path.join(self.box.root, "secret.png"), support.PNG)
         self.box.write("shots.md", note("![](../../secret.png)", "![[../secret.png]]", "![](/etc/x.png)"))
         self.assertEqual(self.items(), [])
+
+
+class Appending(StoreTest):
+    def test_append_keeps_existing_content_and_mode(self):
+        path = self.box.write("commands.md", "# My commands\nintro")
+        os.chmod(path, 0o640)
+        append_to_section(self.folder, "commands", "## B\n```\nb\n```\n")
+        self.assertEqual(self.box.read("commands.md"), "# My commands\nintro\n\n## B\n```\nb\n```\n")
+        self.assertEqual(os.stat(path).st_mode & 0o777, 0o640)
+        self.assertEqual([n for n in os.listdir(self.folder) if n.startswith(".readily-")], [])
+
+    def test_missing_section_needs_create(self):
+        with self.assertRaises(ReadilyError) as caught:
+            append_to_section(self.folder, "chi", "x\n")
+        self.assertEqual(caught.exception.code, 1)
+        self.assertIn("--create", str(caught.exception))
+        append_to_section(self.folder, "chi", "## A\n```\na\n```\n", create=True)
+        self.assertEqual(self.box.read("chi.md"), "## A\n```\na\n```\n")
+        self.assertEqual(os.stat(os.path.join(self.folder, "chi.md")).st_mode & 0o777, 0o644)
+
+    def test_create_on_an_existing_section_uses_it(self):
+        self.box.write("chi.md", "start\n")
+        append_to_section(self.folder, "chi", "x\n", create=True)
+        self.assertEqual(self.box.read("chi.md"), "start\n\nx\n")
+
+    def test_section_names_are_validated(self):
+        for bad in ("", " lead", "trail ", "../x", "a/b", "_x", "-x", "dot.name", "x" * 65):
+            with self.assertRaises(ReadilyError, msg=bad) as caught:
+                append_to_section(self.folder, bad, "x\n", create=True)
+            self.assertEqual(caught.exception.code, 2, bad)
+        for good in ("chi", "Comandos de Pepe", "configuración_2", "a-b", "1st"):
+            self.assertTrue(valid_section_name(good), good)
+
+    def test_links_are_not_written_through(self):
+        target = self.box.write_bytes(os.path.join(self.box.root, "elsewhere.md"), b"")
+        os.symlink(target, os.path.join(self.folder, "linked.md"))
+        with self.assertRaises(ReadilyError) as caught:
+            append_to_section(self.folder, "linked", "x\n")
+        self.assertIn("is a link", str(caught.exception))
+
+    def test_a_note_that_keeps_changing_is_given_up(self):
+        self.box.write("busy.md", "start\n")
+        real_stamp = store._stamp
+        calls = {"n": 0}
+
+        def moving(path):
+            calls["n"] += 1
+            stamp = real_stamp(path)
+            return (stamp[0] + calls["n"],) + stamp[1:] if stamp else stamp
+
+        with mock.patch.object(store, "_stamp", side_effect=moving):
+            with self.assertRaises(ReadilyError) as caught:
+                append_to_section(self.folder, "busy", "x\n")
+        self.assertIn("keeps changing", str(caught.exception))
+        self.assertEqual(self.box.read("busy.md"), "start\n")
+        self.assertEqual([n for n in os.listdir(self.folder) if n.startswith(".readily-")], [])
+
+    def test_non_utf8_note_is_refused(self):
+        self.box.write_bytes("bad.md", b"\xff")
+        with self.assertRaises(ReadilyError) as caught:
+            append_to_section(self.folder, "bad", "x\n")
+        self.assertIn("not UTF-8", str(caught.exception))
+
+
+class Attachments(StoreTest):
+    def test_attachment_names_do_not_collide(self):
+        when = datetime.datetime(2026, 9, 14, 18, 30, 5)
+        first = write_attachment(self.folder, "Chi Links", support.PNG, "png", when)
+        second = write_attachment(self.folder, "Chi Links", support.PNG, "png", when)
+        self.assertEqual((first, second), ("attachments/chi-links-20260914-183005.png",
+                                           "attachments/chi-links-20260914-183005-2.png"))
+        with open(os.path.join(self.folder, first), "rb") as f:
+            self.assertEqual(f.read(), support.PNG)
 
 
 if __name__ == "__main__":

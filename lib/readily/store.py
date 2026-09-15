@@ -1,12 +1,15 @@
 """Sections on disk: listing them, resolving their images, and adding to them."""
+import fcntl
 import hashlib
 import os
 import re
+import tempfile
+from contextlib import contextmanager
 from dataclasses import dataclass
 
-from .config import vault_root
-from .errors import ReadilyError
-from .notes import parse_note
+from .config import runtime_dir, vault_root
+from .errors import USAGE, ReadilyError
+from .notes import append_block, parse_note
 from .tags import tag_matches
 
 MAX_SECTIONS = 200
@@ -167,3 +170,100 @@ def list_payload(folder, wanted_tags=()):
         sections.append({"name": name, "error": section.error, "tags": note_tags, "items": items})
     tags = [{"name": n, "count": c} for n, c in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
     return {"folder": folder, "tags": tags, "sections": sections}
+
+
+@contextmanager
+def locked():
+    """One writer at a time, across every readily process of this user."""
+    fd = os.open(os.path.join(runtime_dir(), "lock"), os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(fd)
+
+
+def _stamp(path):
+    try:
+        st = os.stat(path)
+    except FileNotFoundError:
+        return None
+    return (st.st_mtime_ns, st.st_size, st.st_mode)
+
+
+def check_section_target(folder, name, create):
+    if not valid_section_name(name):
+        raise ReadilyError(f"Not a valid section name: {name}", USAGE)
+    path = section_path(folder, name)
+    if os.path.islink(path):
+        raise ReadilyError(f"{name}.md is a link; edit it in Obsidian")
+    if not os.path.exists(path) and not create:
+        raise ReadilyError(f"There is no section named {name}; add --create to make it")
+    return path
+
+
+def append_to_section(folder, name, block, create=False):
+    """Add a rendered block at the end of the section's note, never touching what is there.
+
+    The new note is written to a temporary file next to it and moved into place,
+    and only if the note did not change while that happened (Obsidian may save it
+    at the same moment). After three changed attempts it gives up.
+    """
+    path = check_section_target(folder, name, create)
+    with locked():
+        for _ in range(3):
+            before = _stamp(path)
+            if before is None and not create:
+                raise ReadilyError(f"There is no section named {name}; add --create to make it")
+            existing = ""
+            if before is not None:
+                if before[1] > MAX_NOTE_BYTES:
+                    raise ReadilyError(f"{name}.md is larger than 2 MiB")
+                try:
+                    with open(path, "rb") as f:
+                        existing = f.read().decode("utf-8")
+                except UnicodeDecodeError:
+                    raise ReadilyError(f"{name}.md is not UTF-8 text")
+            fd, tmp = tempfile.mkstemp(prefix=".readily-", suffix=".tmp", dir=folder)
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
+                    f.write(append_block(existing, block))
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.chmod(tmp, (before[2] & 0o777) if before else 0o644)
+                if _stamp(path) != before:
+                    os.unlink(tmp)
+                    continue
+                os.replace(tmp, path)
+                return path
+            except BaseException:
+                if os.path.exists(tmp):
+                    os.unlink(tmp)
+                raise
+    raise ReadilyError(f"Could not save: {name}.md keeps changing")
+
+
+def slug(name):
+    return re.sub(r"\s+", "-", name.strip().lower())
+
+
+def write_attachment(folder, section_name, data, extension, when):
+    """Store image bytes under attachments/ with a name that never replaces another file."""
+    directory = os.path.join(folder, "attachments")
+    if not inside(directory, folder):
+        raise ReadilyError("attachments/ points outside the folder")
+    os.makedirs(directory, exist_ok=True)
+    base = f"{slug(section_name)}-{when:%Y%m%d-%H%M%S}"
+    number = 1
+    while True:
+        name = f"{base}.{extension}" if number == 1 else f"{base}-{number}.{extension}"
+        try:
+            fd = os.open(os.path.join(directory, name), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+        except FileExistsError:
+            number += 1
+            continue
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        return "attachments/" + name
