@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import qs.Commons
 import qs.Ui
 import "ReadilyModel.js" as Model
@@ -38,11 +39,16 @@ Item {
   readonly property bool canSave: host !== null && clipUsable && !host.saving
     && (creating ? newName !== "" && newNameError === "" : sectionName !== "")
 
-  implicitHeight: column.implicitHeight
+  implicitHeight: heading.implicitHeight + column.implicitHeight + footer.implicitHeight + 2 * Style.space(6)
 
   onCreatingChanged: {
     if (creating && visible) Qt.callLater(function() { newSection.forceActiveFocus() })
   }
+  onSuggestionChanged: showSuggestion()
+  onSuggestionsChanged: showSuggestion()
+  onTagsChanged: if (tagField.activeFocus) ensureVisible(tagField)
+  onTagErrorChanged: if (tagError !== "") ensureVisible(tagErrorText)
+  onNewNameErrorChanged: if (newNameError !== "") ensureVisible(nameErrorText)
 
   function reset(initialTags, initialSection) {
     tags = (initialTags || []).slice()
@@ -53,6 +59,30 @@ Item {
     newSection.text = ""
     tagError = ""
     suggestions = []
+    form.contentY = 0
+  }
+
+  // The form scrolls when the card is too short for it; keep what the keyboard
+  // is on in sight. Runs after the change that moved it has been laid out.
+  function ensureVisible(item) {
+    Qt.callLater(function() {
+      if (!item || !item.visible) return
+      column.forceLayout()
+      var margin = Style.space(6)
+      var top = item.mapToItem(column, 0, 0).y
+      var bottom = top + item.height
+      var maxY = Math.max(0, form.contentHeight - form.height)
+      if (top < form.contentY + margin) form.contentY = Math.max(0, top - margin)
+      else if (bottom > form.contentY + form.height - margin) form.contentY = Math.min(maxY, bottom + margin - form.height)
+    })
+  }
+
+  function showSuggestion() {
+    Qt.callLater(function() {
+      if (suggestions.length === 0) return
+      tagSuggestions.forceLayout()
+      ensureVisible(tagSuggestions.itemAt(suggestion))
+    })
   }
 
   function addTypedTag() {
@@ -100,6 +130,7 @@ Item {
       sectionName = sectionNames[index]
     }
     sectionList.positionViewAtIndex(Math.min(index, sectionNames.length - 1), ListView.Contain)
+    ensureVisible(creating ? newSection : sectionList.itemAtIndex(index))
   }
 
   function submit() {
@@ -167,236 +198,269 @@ Item {
     event.accepted = true
   }
 
-  Column {
-    id: column
+  Text {
+    id: heading
+    text: "Save to Readily"
+    textFormat: Text.PlainText
+    color: view.fg
+    font.family: view.family
+    font.pixelSize: Style.font.title
+    font.bold: true
+  }
+
+  // Everything whose height varies scrolls here, so the error line and the
+  // buttons below always stay on the card.
+  Flickable {
+    id: form
+    anchors.top: heading.bottom
+    anchors.topMargin: Style.space(6)
+    anchors.bottom: footer.top
+    anchors.bottomMargin: Style.space(6)
     width: parent.width
-    spacing: Style.space(6)
+    contentWidth: width
+    contentHeight: column.implicitHeight
+    clip: true
+    boundsBehavior: Flickable.StopAtBounds
+    flickableDirection: Flickable.VerticalFlick
+    interactive: contentHeight > height
+    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-    Text {
-      text: "Save to Readily"
-      textFormat: Text.PlainText
-      color: view.fg
-      font.family: view.family
-      font.pixelSize: Style.font.title
-      font.bold: true
-    }
+    Column {
+      id: column
+      width: form.width
+      spacing: Style.space(6)
 
-    Rectangle {
-      width: parent.width
-      height: previewColumn.implicitHeight + Style.space(12)
-      radius: Style.cornerRadius
-      color: Qt.rgba(view.fg.r, view.fg.g, view.fg.b, 0.06)
+      Rectangle {
+        width: parent.width
+        height: previewColumn.implicitHeight + Style.space(12)
+        radius: Style.cornerRadius
+        color: Qt.rgba(view.fg.r, view.fg.g, view.fg.b, 0.06)
 
-      Column {
-        id: previewColumn
-        x: Style.space(8)
-        y: Style.space(6)
-        width: parent.width - Style.space(16)
-        spacing: Style.space(2)
+        Column {
+          id: previewColumn
+          x: Style.space(8)
+          y: Style.space(6)
+          width: parent.width - Style.space(16)
+          spacing: Style.space(2)
 
-        Repeater {
-          model: view.previewLines
+          Repeater {
+            model: view.previewLines
 
-          Text {
-            required property var modelData
-            width: parent.width
-            text: modelData
-            textFormat: Text.PlainText
-            elide: Text.ElideRight
-            color: view.fg
-            font.family: view.family
-            font.pixelSize: Style.font.bodySmall
+            Text {
+              required property var modelData
+              width: parent.width
+              text: modelData
+              textFormat: Text.PlainText
+              elide: Text.ElideRight
+              color: view.fg
+              font.family: view.family
+              font.pixelSize: Style.font.bodySmall
+            }
           }
-        }
-
-        Text {
-          visible: view.peek.state === "text" && view.peek.lineCount > view.previewLines.length
-          text: "+" + (view.peek.lineCount - view.previewLines.length) + " lines"
-          textFormat: Text.PlainText
-          color: view.dim
-          font.family: view.family
-          font.pixelSize: Style.font.caption
-        }
-
-        Image {
-          visible: view.peek.state === "image" && view.peek.image !== ""
-          width: parent.width
-          height: visible ? Style.space(160) : 0
-          source: visible ? "file://" + view.peek.image : ""
-          sourceSize.height: Style.space(320)
-          fillMode: Image.PreserveAspectFit
-          horizontalAlignment: Image.AlignLeft
-          asynchronous: true
-        }
-
-        Text {
-          width: parent.width
-          visible: !view.clipUsable
-          text: view.peek.state === "" ? "Reading the clipboard…" : (view.peek.message || "Nothing to save")
-          textFormat: Text.PlainText
-          wrapMode: Text.WordWrap
-          color: view.peek.state === "" ? view.dim : view.urgent
-          font.family: view.family
-          font.pixelSize: Style.font.bodySmall
-        }
-      }
-    }
-
-    Text {
-      text: "Title"
-      textFormat: Text.PlainText
-      color: view.dim
-      font.family: view.family
-      font.pixelSize: Style.font.caption
-    }
-
-    TextField {
-      id: titleField
-      width: parent.width
-      placeholderText: view.peek.state === "image" ? "Image " + Qt.formatDateTime(new Date(), "yyyy-MM-dd hh:mm")
-        : (view.peek.title || "Optional")
-      foreground: view.fg
-      font.family: view.family
-      Keys.onPressed: function(event) { view.handleKey(event, titleField) }
-    }
-
-    Text {
-      text: "Tags"
-      textFormat: Text.PlainText
-      color: view.dim
-      font.family: view.family
-      font.pixelSize: Style.font.caption
-    }
-
-    Flow {
-      width: parent.width
-      visible: view.tags.length > 0
-      spacing: Style.space(4)
-
-      Repeater {
-        model: view.tags
-
-        Rectangle {
-          required property var modelData
-          width: chip.implicitWidth + Style.space(10)
-          height: chip.implicitHeight + Style.space(4)
-          radius: height / 2
-          color: chipArea.containsMouse ? Style.hoverFillFor(view.fg, Color.accent)
-            : Qt.rgba(view.fg.r, view.fg.g, view.fg.b, 0.1)
 
           Text {
-            id: chip
-            anchors.centerIn: parent
-            text: "#" + modelData + "  ×"
+            visible: view.peek.state === "text" && view.peek.lineCount > view.previewLines.length
+            text: "+" + (view.peek.lineCount - view.previewLines.length) + " lines"
             textFormat: Text.PlainText
-            color: view.fg
+            color: view.dim
             font.family: view.family
             font.pixelSize: Style.font.caption
           }
 
-          MouseArea {
-            id: chipArea
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: view.removeTag(modelData)
+          Image {
+            visible: view.peek.state === "image" && view.peek.image !== ""
+            width: parent.width
+            height: visible ? Style.space(160) : 0
+            source: visible ? Model.fileUrl(view.peek.image) : ""
+            sourceSize.height: Style.space(320)
+            fillMode: Image.PreserveAspectFit
+            horizontalAlignment: Image.AlignLeft
+            asynchronous: true
+          }
+
+          Text {
+            width: parent.width
+            visible: !view.clipUsable
+            text: view.peek.state === "" ? "Reading the clipboard…" : (view.peek.message || "Nothing to save")
+            textFormat: Text.PlainText
+            wrapMode: Text.WordWrap
+            color: view.peek.state === "" ? view.dim : view.urgent
+            font.family: view.family
+            font.pixelSize: Style.font.bodySmall
           }
         }
       }
-    }
 
-    TextField {
-      id: tagField
-      width: parent.width
-      placeholderText: "Add a tag and press Enter"
-      foreground: view.fg
-      font.family: view.family
-      onTextChanged: {
-        view.tagError = ""
-        view.updateSuggestions()
+      Text {
+        text: "Title"
+        textFormat: Text.PlainText
+        color: view.dim
+        font.family: view.family
+        font.pixelSize: Style.font.caption
       }
-      Keys.onPressed: function(event) { view.handleKey(event, tagField) }
-    }
 
-    TagSuggestions {
-      width: parent.width
-      suggestions: view.suggestions
-      current: view.suggestion
-      foreground: view.fg
-      fontFamily: view.family
-      onPicked: function(index) { view.acceptSuggestion(index) }
-    }
-
-    Text {
-      visible: view.tagError !== ""
-      text: view.tagError
-      textFormat: Text.PlainText
-      color: view.urgent
-      font.family: view.family
-      font.pixelSize: Style.font.caption
-    }
-
-    Text {
-      text: "Section"
-      textFormat: Text.PlainText
-      color: view.dim
-      font.family: view.family
-      font.pixelSize: Style.font.caption
-    }
-
-    ListView {
-      id: sectionList
-      width: parent.width
-      height: Math.min(contentHeight, Style.space(150))
-      visible: view.sectionNames.length > 0
-      clip: true
-      spacing: Style.space(2)
-      boundsBehavior: Flickable.StopAtBounds
-      model: view.sectionNames
-
-      delegate: Button {
-        required property var modelData
-        width: sectionList.width
-        leftAlign: true
-        selected: !view.creating && view.sectionName === modelData
-        text: modelData
+      TextField {
+        id: titleField
+        width: parent.width
+        placeholderText: view.peek.state === "image" ? "Image " + Qt.formatDateTime(new Date(), "yyyy-MM-dd hh:mm")
+          : (view.peek.title || "Optional")
         foreground: view.fg
-        fontFamily: view.family
-        onClicked: {
-          view.creating = false
-          view.sectionName = modelData
+        font.family: view.family
+        onActiveFocusChanged: if (activeFocus) view.ensureVisible(titleField)
+        Keys.onPressed: function(event) { view.handleKey(event, titleField) }
+      }
+
+      Text {
+        text: "Tags"
+        textFormat: Text.PlainText
+        color: view.dim
+        font.family: view.family
+        font.pixelSize: Style.font.caption
+      }
+
+      Flow {
+        width: parent.width
+        visible: view.tags.length > 0
+        spacing: Style.space(4)
+
+        Repeater {
+          model: view.tags
+
+          Rectangle {
+            required property var modelData
+            width: chip.implicitWidth + Style.space(10)
+            height: chip.implicitHeight + Style.space(4)
+            radius: height / 2
+            color: chipArea.containsMouse ? Style.hoverFillFor(view.fg, Color.accent)
+              : Qt.rgba(view.fg.r, view.fg.g, view.fg.b, 0.1)
+
+            Text {
+              id: chip
+              anchors.centerIn: parent
+              text: "#" + modelData + "  ×"
+              textFormat: Text.PlainText
+              color: view.fg
+              font.family: view.family
+              font.pixelSize: Style.font.caption
+            }
+
+            MouseArea {
+              id: chipArea
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: view.removeTag(modelData)
+            }
+          }
         }
       }
-    }
 
-    Button {
-      width: parent.width
-      leftAlign: true
-      selected: view.creating
-      text: "+ New section"
-      foreground: view.fg
-      fontFamily: view.family
-      onClicked: view.creating = true
-    }
+      TextField {
+        id: tagField
+        width: parent.width
+        placeholderText: "Add a tag and press Enter"
+        foreground: view.fg
+        font.family: view.family
+        onTextChanged: {
+          view.tagError = ""
+          view.updateSuggestions()
+        }
+        onActiveFocusChanged: if (activeFocus) view.ensureVisible(tagField)
+        Keys.onPressed: function(event) { view.handleKey(event, tagField) }
+      }
 
-    TextField {
-      id: newSection
-      width: parent.width
-      visible: view.creating
-      placeholderText: "Section name, e.g. commands"
-      foreground: view.fg
-      font.family: view.family
-      Keys.onPressed: function(event) { view.handleKey(event, newSection) }
-    }
+      TagSuggestions {
+        id: tagSuggestions
+        width: parent.width
+        suggestions: view.suggestions
+        current: view.suggestion
+        foreground: view.fg
+        fontFamily: view.family
+        onPicked: function(index) { view.acceptSuggestion(index) }
+      }
 
-    Text {
-      visible: view.newNameError !== ""
-      text: view.newNameError
-      textFormat: Text.PlainText
-      color: view.urgent
-      font.family: view.family
-      font.pixelSize: Style.font.caption
+      Text {
+        id: tagErrorText
+        visible: view.tagError !== ""
+        text: view.tagError
+        textFormat: Text.PlainText
+        color: view.urgent
+        font.family: view.family
+        font.pixelSize: Style.font.caption
+      }
+
+      Text {
+        text: "Section"
+        textFormat: Text.PlainText
+        color: view.dim
+        font.family: view.family
+        font.pixelSize: Style.font.caption
+      }
+
+      ListView {
+        id: sectionList
+        width: parent.width
+        height: Math.min(contentHeight, Style.space(150))
+        visible: view.sectionNames.length > 0
+        clip: true
+        spacing: Style.space(2)
+        boundsBehavior: Flickable.StopAtBounds
+        model: view.sectionNames
+
+        delegate: Button {
+          required property var modelData
+          width: sectionList.width
+          leftAlign: true
+          selected: !view.creating && view.sectionName === modelData
+          text: modelData
+          foreground: view.fg
+          fontFamily: view.family
+          onClicked: {
+            view.creating = false
+            view.sectionName = modelData
+          }
+        }
+      }
+
+      Button {
+        width: parent.width
+        leftAlign: true
+        selected: view.creating
+        text: "+ New section"
+        foreground: view.fg
+        fontFamily: view.family
+        onClicked: view.creating = true
+      }
+
+      TextField {
+        id: newSection
+        width: parent.width
+        visible: view.creating
+        placeholderText: "Section name, e.g. commands"
+        foreground: view.fg
+        font.family: view.family
+        onActiveFocusChanged: if (activeFocus) view.ensureVisible(newSection)
+        Keys.onPressed: function(event) { view.handleKey(event, newSection) }
+      }
+
+      Text {
+        id: nameErrorText
+        visible: view.newNameError !== ""
+        text: view.newNameError
+        textFormat: Text.PlainText
+        color: view.urgent
+        font.family: view.family
+        font.pixelSize: Style.font.caption
+      }
     }
+  }
+
+  // The error line sits right above the buttons, pinned to the bottom of the card.
+  Column {
+    id: footer
+    anchors.bottom: parent.bottom
+    width: parent.width
+    spacing: Style.space(6)
 
     Text {
       width: parent.width

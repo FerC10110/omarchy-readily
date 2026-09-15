@@ -29,7 +29,13 @@ Item {
     return ""
   }
 
-  implicitHeight: column.implicitHeight
+  readonly property real gap: Style.space(8)
+  readonly property bool showList: rows.length > 0
+  readonly property bool showEmpty: rows.length === 0 && sectionError === ""
+  readonly property real listHeight: Math.min(list.contentHeight, Style.space(430))
+
+  implicitHeight: upper.implicitHeight + gap + (showList ? listHeight + gap : 0)
+    + (showEmpty ? empty.implicitHeight + gap : 0) + footer.implicitHeight
 
   onRowsChanged: if (selected >= rows.length) selected = Math.max(0, rows.length - 1)
 
@@ -137,10 +143,12 @@ Item {
     event.accepted = true
   }
 
+  // The header, tabs, search and its suggestions stay at the top and the folder
+  // line at the bottom; the list takes the height left between them.
   Column {
-    id: column
+    id: upper
     width: parent.width
-    spacing: Style.space(8)
+    spacing: view.gap
 
     Item {
       width: parent.width
@@ -251,42 +259,54 @@ Item {
       font.family: view.family
       font.pixelSize: Style.font.bodySmall
     }
+  }
 
-    ListView {
-      id: list
-      width: parent.width
-      height: Math.min(contentHeight, Style.space(430))
-      visible: view.rows.length > 0
-      clip: true
-      spacing: Style.space(2)
-      boundsBehavior: Flickable.StopAtBounds
-      model: view.rows
+  ListView {
+    id: list
+    anchors.top: upper.bottom
+    anchors.topMargin: view.gap
+    width: parent.width
+    height: Math.max(0, Math.min(view.listHeight, footer.y - view.gap - y))
+    visible: view.showList
+    clip: true
+    spacing: Style.space(2)
+    boundsBehavior: Flickable.StopAtBounds
+    model: view.rows
 
-      delegate: ItemRow {
-        required property var modelData
-        required property int index
-        width: list.width
-        host: view.host
-        entry: modelData
-        selected: index === view.selected
-        showSection: view.sectionKey === Model.ALL
-        onActivated: view.host.copyItem(modelData)
-        onTagClicked: function(tag) { view.filterByTag(tag) }
-      }
+    delegate: ItemRow {
+      required property var modelData
+      required property int index
+      width: list.width
+      host: view.host
+      entry: modelData
+      selected: index === view.selected
+      showSection: view.sectionKey === Model.ALL
+      onActivated: view.host.copyItem(modelData)
+      onTagClicked: function(tag) { view.filterByTag(tag) }
     }
+  }
 
-    Text {
-      width: parent.width
-      visible: view.rows.length === 0 && view.sectionError === ""
-      text: view.host && view.host.query !== "" ? "No matches."
-        : (view.sectionKey === Model.ALL ? "Nothing saved yet. Copy something and press Save."
-          : "Nothing in " + view.sectionKey + " yet. Copy something and press Save.")
-      textFormat: Text.PlainText
-      wrapMode: Text.WordWrap
-      color: view.dim
-      font.family: view.family
-      font.pixelSize: Style.font.bodySmall
-    }
+  Text {
+    id: empty
+    anchors.top: upper.bottom
+    anchors.topMargin: view.gap
+    width: parent.width
+    visible: view.showEmpty
+    text: view.host && view.host.query !== "" ? "No matches."
+      : (view.sectionKey === Model.ALL ? "Nothing saved yet. Copy something and press Save."
+        : "Nothing in " + view.sectionKey + " yet. Copy something and press Save.")
+    textFormat: Text.PlainText
+    wrapMode: Text.WordWrap
+    color: view.dim
+    font.family: view.family
+    font.pixelSize: Style.font.bodySmall
+  }
+
+  Column {
+    id: footer
+    anchors.bottom: parent.bottom
+    width: parent.width
+    spacing: view.gap
 
     PanelSeparator {
       width: parent.width

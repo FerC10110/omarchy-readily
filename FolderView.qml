@@ -29,6 +29,9 @@ Item {
     choice = 0
     choosingAnother = false
     otherField.text = ""
+    // Suggestions can arrive after the view is shown and change which item takes
+    // the keys; move the focus with it so typing does not go into a hidden field.
+    if (visible) focusItem.forceActiveFocus()
   }
 
   function move(delta) {
@@ -49,7 +52,10 @@ Item {
       else host.chooseFolder(chosenPath)
       event.accepted = true
     } else if (event.key === Qt.Key_Escape) {
-      host.close()
+      // With a working folder this view was opened by Change: go back to the list.
+      // On first run, or when the folder is missing, there is no list to go back to.
+      if (host.where.exists === true) host.backToList()
+      else host.close()
       event.accepted = true
     }
   }

@@ -53,7 +53,7 @@ Rectangle {
       visible: row.info.kind === "image" && row.info.image !== ""
       width: visible ? Style.space(64) : 0
       height: visible ? Style.space(64) : 0
-      source: visible ? "file://" + row.info.image : ""
+      source: visible ? Model.fileUrl(row.info.image) : ""
       sourceSize.width: Style.space(128)
       fillMode: Image.PreserveAspectFit
       asynchronous: true

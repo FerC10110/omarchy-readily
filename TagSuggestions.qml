@@ -12,10 +12,16 @@ Column {
 
   signal picked(int index)
 
+  // The row showing a suggestion, so a scrolling view can bring it into sight.
+  function itemAt(index) {
+    return rows.itemAt(index)
+  }
+
   visible: suggestions.length > 0
   spacing: Style.space(2)
 
   Repeater {
+    id: rows
     model: root.suggestions
 
     Rectangle {

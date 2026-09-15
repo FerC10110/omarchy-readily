@@ -4,7 +4,7 @@ const fs = require("node:fs")
 const path = require("node:path")
 
 const source = fs.readFileSync(path.join(__dirname, "..", "ReadilyModel.js"), "utf8").replace(/^\.pragma library\s*$/m, "")
-const Model = new Function(source + "\nreturn { ALL, normalize, normalizeTag, validSectionName, caseDuplicate, parseQuery, tagMatches, filterItems, suggestTags, wordAt, completeTag, rowPreview, sectionTabs, tildePath }")()
+const Model = new Function(source + "\nreturn { ALL, normalize, normalizeTag, validSectionName, caseDuplicate, parseQuery, tagMatches, filterItems, suggestTags, wordAt, completeTag, rowPreview, sectionTabs, tildePath, fileUrl }")()
 
 const item = (fields) => Object.assign({ index: 0, kind: "text", title: "", description: "", tags: [], inheritedTags: [], preview: "", lineCount: 1, search: "", image: "", missing: false, hash: "0" }, fields)
 const sections = [
@@ -121,4 +121,10 @@ test("tildePath shortens paths under home", () => {
   assert.equal(Model.tildePath("/home/u/Vault/Readily", "/home/u"), "~/Vault/Readily")
   assert.equal(Model.tildePath("/home/user2/x", "/home/u"), "/home/user2/x")
   assert.equal(Model.tildePath("/home/u", "/home/u"), "~")
+})
+
+test("fileUrl percent-encodes each part of the path", () => {
+  assert.equal(Model.fileUrl("/home/u/Vault #1/a b?c%d/ñandú.png"),
+    "file:///home/u/Vault%20%231/a%20b%3Fc%25d/%C3%B1and%C3%BA.png")
+  assert.equal(Model.fileUrl("/tmp/plain.png"), "file:///tmp/plain.png")
 })

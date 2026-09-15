@@ -173,6 +173,12 @@ function sectionTabs(sections) {
   return tabs
 }
 
+// A file:// URL for an absolute path. Each part is percent-encoded, so a # ? or %
+// in a folder or file name stays part of the path.
+function fileUrl(path) {
+  return "file://" + text(path).split("/").map(encodeURIComponent).join("/")
+}
+
 function tildePath(path, home) {
   var p = text(path)
   var h = text(home).replace(/\/+$/, "")
