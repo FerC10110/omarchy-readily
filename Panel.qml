@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
 import qs.Commons
 import qs.Ui
 import "ReadilyModel.js" as Model
@@ -8,7 +9,9 @@ import "ReadilyModel.js" as Model
 // The panel is a thin face over bin/readily: every file read, every write and
 // every clipboard access happens in that script, and the panel only shows the
 // JSON it prints. Three views share the card: choosing the folder, the list of
-// items, and the form that saves what is copied.
+// items, and the form that saves what is copied. The card drops down from the
+// bar icon when clicked, and opens in the middle of the screen when a keybinding
+// calls it.
 Panel {
   id: root
   moduleName: "io.github.ferc10110.readily"
@@ -31,6 +34,7 @@ Panel {
   property bool noticeIsError: false
   property bool saveWhenReady: false
   property var pendingSave: null
+  property bool centered: false               // opened by a keybinding, not the bar icon
 
   readonly property bool saving: saveCmd.running
   readonly property string home: Quickshell.env("HOME") || ""
@@ -145,6 +149,12 @@ Panel {
       return
     }
     saveWhenReady = true
+    openCentered()
+  }
+
+  function openCentered() {
+    if (opened) return
+    centered = true
     open()
   }
 
@@ -157,6 +167,7 @@ Panel {
       focusCurrent()
     } else {
       saveWhenReady = false
+      centered = false
     }
   }
 
@@ -165,9 +176,9 @@ Panel {
   IpcHandler {
     target: root.ipcTarget
 
-    function open(): void { root.open() }
+    function open(): void { root.openCentered() }
     function close(): void { root.close() }
-    function toggle(): void { root.toggle() }
+    function toggle(): void { root.opened ? root.close() : root.openCentered() }
     function save(): void { root.openForSave() }
   }
 
@@ -284,15 +295,11 @@ Panel {
     }
   }
 
-  KeyboardPanel {
-    id: panel
-    anchorItem: root.anchorItem
-    owner: root.hostWidget || root
-    bar: root.bar
-    open: root.opened
-    focusTarget: root.currentFocus
-    contentWidth: panel.fittedContentWidth(Style.space(420))
-    contentHeight: panel.fittedContentHeight(root.currentHeight, Style.space(640))
+  // The views live in one place and move into whichever card is showing.
+  Item {
+    id: views
+    parent: root.centered ? centerHolder : panelHolder
+    anchors.fill: parent
 
     FolderView {
       id: folderView
@@ -313,6 +320,76 @@ Panel {
       anchors.fill: parent
       visible: root.view === "save"
       host: root
+    }
+  }
+
+  // Opened from the bar icon: the card drops down from it.
+  KeyboardPanel {
+    id: panel
+    anchorItem: root.anchorItem
+    owner: root.hostWidget || root
+    bar: root.bar
+    open: root.opened && !root.centered
+    focusTarget: root.currentFocus
+    contentWidth: panel.fittedContentWidth(Style.space(420))
+    contentHeight: panel.fittedContentHeight(root.currentHeight, Style.space(640))
+
+    Item {
+      id: panelHolder
+      anchors.fill: parent
+    }
+  }
+
+  // Opened by a keybinding: the same card in the middle of the focused screen,
+  // over a dimmed background like Omarchy's clipboard and menu.
+  PanelWindow {
+    id: centerWindow
+    visible: root.opened && root.centered
+    anchors { top: true; bottom: true; left: true; right: true }
+    color: "transparent"
+    exclusionMode: ExclusionMode.Ignore
+    WlrLayershell.namespace: "io.github.ferc10110.readily"
+    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+
+    onVisibleChanged: if (visible) root.focusCurrent()
+
+    Rectangle {
+      anchors.fill: parent
+      color: Color.menu.scrim
+    }
+
+    MouseArea {
+      anchors.fill: parent
+      acceptedButtons: Qt.AllButtons
+      onClicked: root.close()
+    }
+
+    BorderSurface {
+      id: centerCard
+      anchors.centerIn: parent
+      width: Math.round(Math.min(Style.space(420), centerWindow.width - Style.gapsOut * 2))
+      height: Math.round(Math.min(root.currentHeight + panel.verticalContentInset, Style.space(640),
+                                  centerWindow.height - Style.gapsOut * 2))
+      color: Color.popups.background
+      borderSpec: panel.borderSpec
+      padding: panel.padding
+      radius: Style.cornerRadius
+
+      // Clicks on the card stay on the card.
+      MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.AllButtons
+      }
+
+      Item {
+        id: centerHolder
+        anchors.fill: parent
+        anchors.topMargin: centerCard.contentTopInset
+        anchors.rightMargin: centerCard.contentRightInset
+        anchors.bottomMargin: centerCard.contentBottomInset
+        anchors.leftMargin: centerCard.contentLeftInset
+      }
     }
   }
 }

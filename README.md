@@ -158,7 +158,9 @@ o.bind("SUPER + ALT + V", "Readily", "omarchy-shell io.github.ferc10110.readily 
 o.bind("SUPER + ALT + C", "Save to Readily", "omarchy-shell io.github.ferc10110.readily save")
 ```
 
-`open` and `close` are available too.
+`open` and `close` are available too. Opened this way, the panel shows up in
+the middle of the focused screen over a dimmed background, like Omarchy's
+clipboard; the bar icon still opens it right under the icon.
 
 ## From the terminal
 
