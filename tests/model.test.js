@@ -32,8 +32,8 @@ test("normalizeTag mirrors the script", () => {
   assert.equal(Model.normalizeTag("Configuración"), "configuración")
   for (const bad of ["", "#", "123", "1/2", "!!!"]) assert.equal(Model.normalizeTag(bad), "", bad)
   assert.equal(Model.normalizeTag("日本語"), "日本語")
-  assert.equal(Model.normalizeTag("#→"), "")
-  assert.equal(Model.normalizeTag(""), "")
+  assert.equal(Model.normalizeTag("#\uE0A0"), "")
+  assert.equal(Model.normalizeTag("ab\uE0A0"), "ab")
 })
 
 test("validSectionName mirrors the script", () => {
