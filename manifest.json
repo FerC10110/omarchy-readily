@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.ferc10110.readily",
+  "name": "Readily",
+  "version": "1.0.0",
+  "author": "Fernando Cancro",
+  "license": "MIT",
+  "description": "Keep the commands, addresses and snippets you never remember in sections you create, as Markdown notes with #tags, and copy any of them back with one click.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Readily",
+    "description": "Save what is copied into your own sections and copy it back",
+    "category": "Productivity",
+    "aliases": [
+      "readily",
+      "snippets",
+      "clipboard"
+    ],
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
