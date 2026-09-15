@@ -184,7 +184,7 @@ Every command takes `-h`, and `list`, `tags`, `where`, `vaults` and `peek` take
 
 | Variable | Default | What it does |
 |---|---|---|
-| `READILY_DIR` | the folder you chose | Use this folder instead, for this process only. While it is set, choosing another folder (in the panel or with `readily init`) is refused |
+| `READILY_DIR` | the folder you chose | Use this folder instead, for this process only. While it is set, choosing another folder (in the panel or with `readily init`) is refused; creating this one works but is not remembered |
 | `READILY_MAX_TEXT_BYTES` | `262144` (256 KiB) | Largest text Readily saves |
 | `READILY_MAX_IMAGE_BYTES` | `20971520` (20 MiB) | Largest image Readily saves |
 | `READILY_CLIP_TIMEOUT` | `2` | Seconds to wait for the app that owns the clipboard |

@@ -75,6 +75,12 @@ class Reading(CliTest):
         self.assertFalse(os.path.exists(target))
         self.assertEqual(self.ok("init", "--", target, env={"READILY_DIR": "  "}).strip(), target)
 
+    def test_init_creates_the_readily_dir_folder_without_remembering_it(self):
+        target = os.path.join(self.box.home, "Missing")
+        self.assertEqual(self.ok("init", "--", target, env={"READILY_DIR": target}).strip(), target)
+        self.assertTrue(os.path.isfile(os.path.join(target, "commands.md")))
+        self.assertFalse(os.path.exists(os.path.join(self.box.config, "readily")))
+
     def test_list_and_tags_for_the_terminal(self):
         self.box.write("commands.md", note("## Pods #chi", "```", "kubectl get pods", "second line", "```",
                                            "## Other", "```", "ls", "```"))

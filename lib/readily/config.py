@@ -130,12 +130,13 @@ def _has_sections(folder):
 
 def init_folder(raw_path):
     """Use the folder from now on: create it, add the example if it is empty, remember it."""
-    if os.environ.get("READILY_DIR", "").strip():
-        # The variable wins over config.json, so a new choice would silently do nothing.
-        raise ReadilyError("READILY_DIR is set; unset it to change the folder")
+    env = os.environ.get("READILY_DIR", "").strip()
     folder = expand(raw_path)
     if not os.path.isabs(folder):
         raise ReadilyError(f"The folder must be an absolute path: {raw_path}", USAGE)
+    if env and folder != expand(env):
+        # The variable wins over config.json, so a new choice would silently do nothing.
+        raise ReadilyError("READILY_DIR is set; unset it to change the folder")
     try:
         os.makedirs(folder, exist_ok=True)
     except OSError as e:
@@ -148,5 +149,6 @@ def init_folder(raw_path):
         if fd is not None:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(EXAMPLE_NOTE)
-    write_json_atomic(config_path(), {"folder": folder})
+    if not env:
+        write_json_atomic(config_path(), {"folder": folder})
     return folder
