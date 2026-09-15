@@ -1,14 +1,19 @@
 """readily: keep the text and images you reach for in Markdown notes, one note per section."""
 import argparse
+import datetime
 import json
 import os
 import subprocess
 import sys
 from urllib.parse import quote
 
+from . import clipboard
 from .config import init_folder, registered_vaults, resolve_folder, suggestions, vault_root
-from .errors import NO_FOLDER, USAGE, ReadilyError
-from .store import list_payload, section_names, section_path
+from .errors import CHANGED, NO_FOLDER, USAGE, ReadilyError
+from .notes import (TITLE_MAX, clean_title, first_line, render_image_item, render_text_item,
+                    strip_trailing_newlines, truncate)
+from .store import (append_to_section, check_section_target, entries, item_hash, list_payload, read_section,
+                    section_names, section_path, write_attachment)
 from .tags import normalize_tags
 
 
@@ -123,6 +128,91 @@ def cmd_open(args):
     return 0
 
 
+def cmd_peek(args):
+    clip = clipboard.read_clipboard()
+    data = {"state": clip.state, "message": clip.message, "mime": clip.mime, "bytes": len(clip.data),
+            "preview": "", "lineCount": 0, "title": "", "image": "", "hash": ""}
+    if clip.state == "text":
+        text = strip_trailing_newlines(clip.text)
+        lines = text.split("\n")
+        data.update(preview="\n".join(lines[:8]), lineCount=len(lines),
+                    title=truncate(first_line(text), TITLE_MAX), hash=clip.hash())
+    elif clip.state == "image":
+        data.update(image=clipboard.write_peek_image(clip), hash=clip.hash())
+    if args.json:
+        emit(data)
+        return 0
+    print(clip.state + (f": {clip.message}" if clip.message else ""))
+    if data["preview"]:
+        print(data["preview"])
+    return 0
+
+
+def _stdin_clip():
+    limit = clipboard.text_limit()
+    raw = sys.stdin.buffer.read(limit + 1)
+    if len(raw) > limit:
+        raise ReadilyError(f"The text is over {clipboard.human_size(limit)}")
+    try:
+        raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise ReadilyError("The text is not UTF-8")
+    return clipboard.Clip("text", "text/plain", raw)
+
+
+def cmd_save(args):
+    tags = wanted_tags(args.tag)
+    folder = require_folder()
+    check_section_target(folder, args.section, args.create)
+    if args.stdin:
+        clip = _stdin_clip()
+    else:
+        clip = clipboard.read_clipboard()
+        if clip.state not in ("text", "image"):
+            raise ReadilyError(clip.message)
+        if args.expect and clip.hash() != args.expect:
+            raise ReadilyError("The clipboard changed; check the preview again", CHANGED)
+    title = clean_title(args.title)
+    if clip.state == "text":
+        content = strip_trailing_newlines(clip.text)
+        if not content.strip():
+            raise ReadilyError("Nothing to save")
+        title = title or truncate(first_line(content), TITLE_MAX)
+        append_to_section(folder, args.section, render_text_item(title, tags, content), args.create)
+    else:
+        when = datetime.datetime.now()
+        title = title or f"Image {when:%Y-%m-%d %H:%M}"
+        relpath = write_attachment(folder, args.section, clip.data, clip.extension, when)
+        try:
+            append_to_section(folder, args.section, render_image_item(title, tags, relpath), args.create)
+        except BaseException:
+            os.unlink(os.path.join(folder, relpath))
+            raise
+    print(f"Saved to {args.section}: {title}")
+    return 0
+
+
+def cmd_copy(args):
+    folder = require_folder()
+    changed = ReadilyError(f"{args.section} changed; reloaded", CHANGED)
+    if args.section not in section_names(folder):
+        raise changed
+    section = read_section(folder, args.section)
+    if section.error:
+        raise ReadilyError(section.error)
+    found = entries(folder, section)
+    if not 0 <= args.index < len(found) or item_hash(found[args.index].item) != args.hash:
+        raise changed
+    entry = found[args.index]
+    if entry.item.kind == "text":
+        clipboard.copy_text(entry.item.content)
+    elif entry.missing:
+        raise ReadilyError("The image is missing")
+    else:
+        clipboard.copy_image(entry.image)
+    return 0
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="readily",
@@ -149,6 +239,25 @@ def build_parser():
     p = sub.add_parser("tags", help="show every tag and how many items have it")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_tags)
+
+    p = sub.add_parser("peek", help="describe what is on the clipboard")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_peek)
+
+    p = sub.add_parser("save", help="add what is on the clipboard (or stdin) to a section")
+    p.add_argument("section", metavar="SECTION")
+    p.add_argument("--title", default="", help="defaults to the first line of the text")
+    p.add_argument("--tag", action="append", metavar="TAG", help="repeatable")
+    p.add_argument("--create", action="store_true", help="create the section if it does not exist")
+    p.add_argument("--expect", metavar="HASH", help="refuse if the clipboard no longer matches `peek`")
+    p.add_argument("--stdin", action="store_true", help="save text from standard input instead")
+    p.set_defaults(func=cmd_save)
+
+    p = sub.add_parser("copy", help="put an item back on the clipboard")
+    p.add_argument("section", metavar="SECTION")
+    p.add_argument("index", metavar="INDEX", type=int)
+    p.add_argument("hash", metavar="HASH")
+    p.set_defaults(func=cmd_copy)
 
     p = sub.add_parser("open", help="open a section in Obsidian (or your editor), or the folder")
     p.add_argument("section", metavar="SECTION", nargs="?")
