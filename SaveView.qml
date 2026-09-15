@@ -28,9 +28,13 @@ Item {
   readonly property bool clipUsable: (peek.state === "text" || peek.state === "image") && peek.hash !== ""
   readonly property var previewLines: peek.state === "text" ? String(peek.preview || "").split("\n") : []
   readonly property string newName: newSection.text.trim()
-  // The name rule is for new sections; typing the name of one that exists uses it.
-  readonly property string newNameError: creating && newSection.text !== "" && !Model.validSectionName(newName)
-    && sectionNames.indexOf(newName) === -1 ? "Use letters, digits, spaces, - and _" : ""
+  // The name rules are for new sections; typing the name of one that exists uses it.
+  readonly property string newNameError: {
+    if (!creating || newSection.text === "" || sectionNames.indexOf(newName) !== -1) return ""
+    if (!Model.validSectionName(newName)) return "Use letters, digits, spaces, - and _"
+    var existing = Model.caseDuplicate(sectionNames, newName)
+    return existing !== "" ? "A section named " + existing + " already exists" : ""
+  }
   readonly property bool canSave: host !== null && clipUsable && !host.saving
     && (creating ? newName !== "" && newNameError === "" : sectionName !== "")
 

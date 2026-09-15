@@ -67,6 +67,14 @@ class Reading(CliTest):
                          ["Find what is using a port", "Follow a service's log", "Copy a file to another machine"])
         self.assertEqual(self.json("where", "--json", env={"READILY_DIR": ""})["source"], "config")
 
+    def test_init_refuses_while_readily_dir_is_set(self):
+        target = os.path.join(self.box.home, "Other")
+        self.assertEqual(self.fails(1, "init", "--", target),
+                         "readily: READILY_DIR is set; unset it to change the folder\n")
+        self.assertFalse(os.path.exists(os.path.join(self.box.config, "readily")))
+        self.assertFalse(os.path.exists(target))
+        self.assertEqual(self.ok("init", "--", target, env={"READILY_DIR": "  "}).strip(), target)
+
     def test_list_and_tags_for_the_terminal(self):
         self.box.write("commands.md", note("## Pods #chi", "```", "kubectl get pods", "second line", "```",
                                            "## Other", "```", "ls", "```"))
@@ -78,6 +86,12 @@ class Reading(CliTest):
         self.assertEqual(self.ok("tags"), "   2  #chi\n")
         self.assertEqual(self.json("tags", "--json"), {"tags": [{"name": "chi", "count": 2}]})
         self.assertIn("Not a valid tag: 123", self.fails(2, "list", "--tag", "123"))
+
+    def test_a_note_name_that_is_not_utf8_is_skipped(self):
+        self.box.write("commands.md", note("```", "ls", "```"))
+        os.close(os.open(os.path.join(os.fsencode(self.box.folder), b"bad\xff.md"), os.O_CREAT | os.O_WRONLY, 0o644))
+        self.assertEqual([s["name"] for s in self.json("list", "--json")["sections"]], ["commands"])
+        self.assertEqual(self.ok("list"), "commands\n  [0] ls\n      ls\n")
 
     def test_open_uses_obsidian_inside_a_registered_vault(self):
         os.makedirs(os.path.join(self.box.home, ".obsidian"))
@@ -134,6 +148,14 @@ class Writing(CliTest):
         self.assertEqual(self.box.read("k8s.prod.md"), "## kubectl get pods\n```\nkubectl get pods\n```\n")
         self.assertIn("Not a valid section name", self.fails(2, "save", "--create", "--stdin", "--", "New & Old",
                                                              stdin=b"x"))
+
+    def test_a_section_differing_only_in_case_is_refused(self):
+        self.box.write("Commands.md", "start\n")
+        self.assertEqual(self.fails(2, "save", "--create", "--stdin", "--", "commands", stdin=b"ls"),
+                         "readily: A section named Commands already exists\n")
+        self.assertEqual(os.listdir(self.box.folder), ["Commands.md"])
+        self.ok("save", "--create", "--stdin", "--", "Commands", stdin=b"ls")
+        self.assertEqual(self.box.read("Commands.md"), "start\n\n## ls\n```\nls\n```\n")
 
     def test_save_from_stdin_uses_the_first_line_as_title(self):
         self.ok("save", "--create", "--stdin", "commands", stdin=b"\n  docker compose up -d\nsecond\n\n")

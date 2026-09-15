@@ -143,6 +143,16 @@ class Appending(StoreTest):
         for good in ("chi", "Comandos de Pepe", "configuración_2", "a-b", "1st"):
             self.assertTrue(valid_section_name(good), good)
 
+    def test_a_case_only_duplicate_is_caught_under_the_lock(self):
+        """Commands.md appearing after the check and before the lock still stops commands.md."""
+        self.box.write("Commands.md", "start\n")
+        with mock.patch.object(store, "check_section_target", return_value=os.path.join(self.folder, "commands.md")):
+            with self.assertRaises(ReadilyError) as caught:
+                append_to_section(self.folder, "commands", "x\n", create=True)
+        self.assertEqual((str(caught.exception), caught.exception.code),
+                         ("A section named Commands already exists", USAGE))
+        self.assertEqual(os.listdir(self.folder), ["Commands.md"])
+
     def test_links_are_not_written_through(self):
         target = self.box.write_bytes(os.path.join(self.box.root, "elsewhere.md"), b"")
         os.symlink(target, os.path.join(self.folder, "linked.md"))

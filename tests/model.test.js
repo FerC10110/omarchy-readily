@@ -4,7 +4,7 @@ const fs = require("node:fs")
 const path = require("node:path")
 
 const source = fs.readFileSync(path.join(__dirname, "..", "ReadilyModel.js"), "utf8").replace(/^\.pragma library\s*$/m, "")
-const Model = new Function(source + "\nreturn { ALL, normalize, normalizeTag, validSectionName, parseQuery, tagMatches, filterItems, suggestTags, wordAt, completeTag, rowPreview, sectionTabs, tildePath }")()
+const Model = new Function(source + "\nreturn { ALL, normalize, normalizeTag, validSectionName, caseDuplicate, parseQuery, tagMatches, filterItems, suggestTags, wordAt, completeTag, rowPreview, sectionTabs, tildePath }")()
 
 const item = (fields) => Object.assign({ index: 0, kind: "text", title: "", description: "", tags: [], inheritedTags: [], preview: "", lineCount: 1, search: "", image: "", missing: false, hash: "0" }, fields)
 const sections = [
@@ -42,6 +42,15 @@ test("validSectionName mirrors the script", () => {
   assert.equal(Model.validSectionName("日本語"), true)
   assert.equal(Model.validSectionName("Hello 日本"), true)
   assert.equal(Model.validSectionName("→ x"), false)
+})
+
+test("caseDuplicate finds a section that differs only in case", () => {
+  const names = ["Commands", "links"]
+  assert.equal(Model.caseDuplicate(names, "commands"), "Commands")
+  assert.equal(Model.caseDuplicate(names, "LINKS"), "links")
+  assert.equal(Model.caseDuplicate(names, "Commands"), "")
+  assert.equal(Model.caseDuplicate(names, "servers"), "")
+  assert.equal(Model.caseDuplicate(["Commands", "commands"], "commands"), "")
 })
 
 test("parseQuery splits tags from words", () => {

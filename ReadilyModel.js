@@ -73,6 +73,17 @@ function validSectionName(name) {
   return true
 }
 
+// The existing section a new name differs from only in case, or "". The script
+// refuses those; a name that matches a section exactly just uses it.
+function caseDuplicate(names, name) {
+  var list = names || []
+  var s = text(name)
+  if (list.indexOf(s) !== -1) return ""
+  for (var i = 0; i < list.length; i++)
+    if (text(list[i]).toLowerCase() === s.toLowerCase()) return list[i]
+  return ""
+}
+
 function parseQuery(query) {
   var tokens = text(query).split(/\s+/)
   var result = { tags: [], words: [] }

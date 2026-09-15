@@ -51,10 +51,20 @@ class Entry:
     missing: bool = False
 
 
+def _utf8(name):
+    """False for a file name that is not UTF-8 on disk (Python holds it with surrogate escapes)."""
+    try:
+        name.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
 def section_names(folder):
     try:
         found = [e.name for e in os.scandir(folder)
-                 if e.name.endswith(".md") and len(e.name) > 3 and not e.name.startswith(".") and e.is_file()]
+                 if e.name.endswith(".md") and len(e.name) > 3 and not e.name.startswith(".") and _utf8(e.name)
+                 and e.is_file()]
     except OSError as e:
         raise ReadilyError(f"Cannot read {folder}: {e.strerror or e}")
     names = sorted((n[:-3] for n in found), key=lambda n: (n.casefold(), n))
@@ -200,9 +210,19 @@ def check_section_target(folder, name, create):
     path = section_path(folder, name)
     if os.path.islink(path):
         raise ReadilyError(f"{name}.md is a link; edit it in Obsidian")
-    if not os.path.exists(path) and not create:
-        raise ReadilyError(f"There is no section named {name}; add --create to make it")
+    if not os.path.exists(path):
+        _refuse_case_duplicate(folder, name)
+        if not create:
+            raise ReadilyError(f"There is no section named {name}; add --create to make it")
     return path
+
+
+def _refuse_case_duplicate(folder, name):
+    """A new note must not differ from an existing one only in case (sync targets may not tell them apart)."""
+    wanted = name.casefold()
+    for existing in section_names(folder):
+        if existing.casefold() == wanted:
+            raise ReadilyError(f"A section named {existing} already exists", USAGE)
 
 
 def append_to_section(folder, name, block, create=False):
@@ -218,8 +238,10 @@ def append_to_section(folder, name, block, create=False):
             if os.path.islink(path):
                 raise ReadilyError(f"{name}.md is a link; edit it in Obsidian")
             before = _stamp(path)
-            if before is None and not create:
-                raise ReadilyError(f"There is no section named {name}; add --create to make it")
+            if before is None:
+                _refuse_case_duplicate(folder, name)
+                if not create:
+                    raise ReadilyError(f"There is no section named {name}; add --create to make it")
             existing = ""
             if before is not None:
                 if before[1] > MAX_NOTE_BYTES:

@@ -81,6 +81,10 @@ class Vaults(ConfigTest):
 
 
 class Init(ConfigTest):
+    def setUp(self):
+        super().setUp()
+        os.environ["READILY_DIR"] = ""  # init refuses to run while it is set
+
     def test_init_creates_folder_example_and_config(self):
         target = os.path.join(self.box.home, "Vault", "Readily")
         self.assertEqual(config.init_folder(target), target)
