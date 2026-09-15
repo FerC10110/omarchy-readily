@@ -25,6 +25,7 @@ def note(*lines):
 #   hang             when present, wl-paste never answers
 #   copied.args / copied.data   what wl-copy received
 #   opened           the argument xdg-open received
+#   edited           the argument omarchy-launch-editor received
 FAKE_WL_PASTE = r'''#!/usr/bin/env python3
 import os, sys, time
 d = os.environ["FAKE_CLIP"]
@@ -58,6 +59,11 @@ import os, sys
 open(os.path.join(os.environ["FAKE_CLIP"], "opened"), "w").write(sys.argv[1])
 '''
 
+FAKE_LAUNCH_EDITOR = r'''#!/usr/bin/env python3
+import os, sys
+open(os.path.join(os.environ["FAKE_CLIP"], "edited"), "w").write(sys.argv[1])
+'''
+
 
 class Sandbox:
     """A temp HOME, XDG config and runtime dirs, a Readily folder and fake tools."""
@@ -70,7 +76,9 @@ class Sandbox:
         self.clip = self._dir("clip")
         self.bin = self._dir("bin")
         self.folder = self._dir("home/Readily")
-        for name, body in (("wl-paste", FAKE_WL_PASTE), ("wl-copy", FAKE_WL_COPY), ("xdg-open", FAKE_XDG_OPEN)):
+        # omarchy-launch-editor is faked too, so no test ever opens a real editor.
+        for name, body in (("wl-paste", FAKE_WL_PASTE), ("wl-copy", FAKE_WL_COPY), ("xdg-open", FAKE_XDG_OPEN),
+                           ("omarchy-launch-editor", FAKE_LAUNCH_EDITOR)):
             path = os.path.join(self.bin, name)
             with open(path, "w") as f:
                 f.write(body)

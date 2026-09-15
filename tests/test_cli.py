@@ -4,9 +4,11 @@ import subprocess
 import sys
 import time
 import unittest
+from unittest import mock
 from urllib.parse import quote
 
 import support
+from readily import cli
 from support import note
 
 
@@ -109,14 +111,20 @@ class Reading(CliTest):
         opened = self.wait_for(os.path.join(self.box.clip, "opened"))
         self.assertEqual(opened, "obsidian://open?path=" + quote(os.path.realpath(path), safe=""))
 
-    def test_open_without_a_vault_opens_the_note_or_folder(self):
+    def test_open_without_a_vault_opens_the_note_in_the_editor_or_the_folder(self):
         path = self.box.write("commands.md", "")
         self.ok("open", "commands")
-        self.assertEqual(self.wait_for(os.path.join(self.box.clip, "opened")), os.path.realpath(path))
-        os.unlink(os.path.join(self.box.clip, "opened"))
+        self.assertEqual(self.wait_for(os.path.join(self.box.clip, "edited")), os.path.realpath(path))
         self.ok("open")
         self.assertEqual(self.wait_for(os.path.join(self.box.clip, "opened")), self.box.folder)
         self.assertIn("no section named nope", self.fails(1, "open", "nope"))
+
+    def test_open_without_omarchy_editor_falls_back_to_xdg_open(self):
+        path = self.box.write("commands.md", "")
+        self.box.apply()
+        with mock.patch("readily.cli.shutil.which", return_value=None):
+            self.assertEqual(cli.main(["open", "commands"]), 0)
+        self.assertEqual(self.wait_for(os.path.join(self.box.clip, "opened")), os.path.realpath(path))
 
 
 class Writing(CliTest):

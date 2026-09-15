@@ -3,6 +3,7 @@ import argparse
 import datetime
 import json
 import os
+import shutil
 import subprocess
 import sys
 from urllib.parse import quote
@@ -39,13 +40,13 @@ def wanted_tags(values):
         raise ReadilyError(f"Not a valid tag: {e.args[0]}", USAGE)
 
 
-def launch(target):
+def launch(target, program="xdg-open"):
     """Hand a path or URL to the desktop, without waiting for the app it opens."""
     try:
-        subprocess.Popen(["xdg-open", target], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+        subprocess.Popen([program, target], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                          stderr=subprocess.DEVNULL, start_new_session=True)
     except FileNotFoundError:
-        raise ReadilyError("xdg-open is missing")
+        raise ReadilyError(f"{program} is missing")
 
 
 def cmd_where(args):
@@ -124,7 +125,12 @@ def cmd_open(args):
     path = os.path.realpath(section_path(folder, args.section))
     vault = vault_root(folder)
     known = {os.path.realpath(v["path"]) for v in registered_vaults()}
-    launch("obsidian://open?path=" + quote(path, safe="") if vault and vault in known else path)
+    if vault and vault in known:
+        launch("obsidian://open?path=" + quote(path, safe=""))
+    else:
+        # xdg-open starts terminal editors such as nvim without a terminal, so nothing
+        # shows up; Omarchy's launcher opens the editor the user picked, in a terminal.
+        launch(path, shutil.which("omarchy-launch-editor") or "xdg-open")
     return 0
 
 
