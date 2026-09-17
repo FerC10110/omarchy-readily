@@ -4,8 +4,9 @@ import qs.Ui
 import "ReadilyModel.js" as Model
 
 // The list: section tabs, a search box that also filters by #tag, and the
-// items. Choosing an item asks the panel to copy it; nothing here reads a file
-// or touches the clipboard.
+// items. Choosing an item asks the panel to copy it, and pressing Ctrl+E on it
+// asks the panel to open its note in the editor; nothing here reads a file or
+// touches the clipboard.
 Item {
   id: view
 
@@ -129,6 +130,8 @@ Item {
       host.startSave()
     } else if (ctrl && event.key === Qt.Key_O) {
       host.openSection(openTarget)
+    } else if (ctrl && event.key === Qt.Key_E) {
+      if (rows[selected]) host.editItem(rows[selected])
     } else if (event.key === Qt.Key_Down) {
       moveSelection(1)
     } else if (event.key === Qt.Key_Up) {

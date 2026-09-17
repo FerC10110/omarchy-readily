@@ -138,6 +138,11 @@ Panel {
     copyCmd.start(["copy", "--", row.section, String(row.item.index), row.item.hash])
   }
 
+  function editItem(row) {
+    if (!row || editCmd.running || row.item.missing === true) return
+    editCmd.start(["edit", "--", row.section])
+  }
+
   function openSection(name) {
     if (!name || name === Model.ALL || openCmd.running) return
     openCmd.start(["open", "--", name])
@@ -292,6 +297,15 @@ Panel {
     onFinished: function(code, out, err) {
       if (code === 0) root.close()
       else root.setNotice(root.lastLine(err) || "Could not open the section", true)
+    }
+  }
+
+  ReadilyCommand {
+    id: editCmd
+    program: root.program
+    onFinished: function(code, out, err) {
+      if (code === 0) root.close()
+      else root.setNotice(root.lastLine(err) || "Could not open the editor", true)
     }
   }
 

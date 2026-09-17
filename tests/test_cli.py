@@ -126,6 +126,23 @@ class Reading(CliTest):
             self.assertEqual(cli.main(["open", "commands"]), 0)
         self.assertEqual(self.wait_for(os.path.join(self.box.clip, "opened")), os.path.realpath(path))
 
+    def test_edit_opens_the_note_in_the_editor_even_inside_a_vault(self):
+        os.makedirs(os.path.join(self.box.home, ".obsidian"))
+        os.makedirs(os.path.join(self.box.config, "obsidian"))
+        with open(os.path.join(self.box.config, "obsidian", "obsidian.json"), "w") as f:
+            json.dump({"vaults": {"x": {"path": self.box.home, "ts": 1}}}, f)
+        path = self.box.write("commands.md", "")
+        self.ok("edit", "--", "commands")
+        self.assertEqual(self.wait_for(os.path.join(self.box.clip, "edited")), os.path.realpath(path))
+        self.assertIn("no section named nope", self.fails(1, "edit", "nope"))
+
+    def test_edit_without_omarchy_editor_falls_back_to_xdg_open(self):
+        path = self.box.write("commands.md", "")
+        self.box.apply()
+        with mock.patch("readily.cli.shutil.which", return_value=None):
+            self.assertEqual(cli.main(["edit", "--", "commands"]), 0)
+        self.assertEqual(self.wait_for(os.path.join(self.box.clip, "opened")), os.path.realpath(path))
+
 
 class Writing(CliTest):
     def test_save_text_from_the_clipboard_then_copy_it_back(self):

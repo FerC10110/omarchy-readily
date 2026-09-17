@@ -134,6 +134,18 @@ def cmd_open(args):
     return 0
 
 
+def cmd_edit(args):
+    folder = require_folder()
+    if args.section not in section_names(folder):
+        raise ReadilyError(f"There is no section named {args.section}")
+    # Always the text editor, even when the folder sits in an Obsidian vault.
+    # xdg-open starts terminal editors such as nvim without a terminal, so nothing
+    # shows up; Omarchy's launcher opens the editor the user picked, in a terminal.
+    launch(os.path.realpath(section_path(folder, args.section)),
+           shutil.which("omarchy-launch-editor") or "xdg-open")
+    return 0
+
+
 def cmd_peek(args):
     clip = clipboard.read_clipboard()
     data = {"state": clip.state, "message": clip.message, "mime": clip.mime, "bytes": len(clip.data),
@@ -268,6 +280,10 @@ def build_parser():
     p = sub.add_parser("open", help="open a section in Obsidian (or your editor), or the folder")
     p.add_argument("section", metavar="SECTION", nargs="?")
     p.set_defaults(func=cmd_open)
+
+    p = sub.add_parser("edit", help="open a section's note in your text editor")
+    p.add_argument("section", metavar="SECTION")
+    p.set_defaults(func=cmd_edit)
     return parser
 
 

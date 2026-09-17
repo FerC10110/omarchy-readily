@@ -115,6 +115,8 @@ saved command into a terminal never runs it on its own. Images go to
 
 To copy an item back, click it or select it and press `Enter`. The panel closes
 and the item is on the clipboard, ready to paste. Readily does not paste for you.
+To edit what an item holds, select it and press `Ctrl+E`: its note opens in your
+text editor, where items are ordinary Markdown.
 
 ### Keys
 
@@ -129,6 +131,7 @@ In the list:
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | next / previous section |
 | `Ctrl+S` | save what is copied |
 | `Ctrl+O` | open the section (on All, the selected item's) in Obsidian; outside a vault, in the editor Omarchy uses |
+| `Ctrl+E` | open the selected item's note in the editor Omarchy uses |
 | `Esc` | clear the search; close when it is already empty |
 
 While saving:
@@ -179,6 +182,7 @@ readily save commands --title "Pods" --tag chi   # save what is copied
 some-command | readily save commands --stdin --create --tag chi
 readily copy commands 3 HASH         # HASH comes from `readily list --json`
 readily open commands                # open the note in Obsidian (or your editor)
+readily edit commands                # open the note in your text editor
 readily where                        # which folder is used and why
 readily init ~/Notes/Readily         # use another folder
 ```
