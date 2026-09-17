@@ -4,9 +4,9 @@ import qs.Ui
 import "ReadilyModel.js" as Model
 
 // The list: section tabs, a search box that also filters by #tag, and the
-// items. Choosing an item asks the panel to copy it, and pressing Ctrl+E on it
-// asks the panel to open its note in the editor; nothing here reads a file or
-// touches the clipboard.
+// items. Choosing an item asks the panel to copy it, and right-clicking it or
+// pressing Ctrl+E asks the panel to open its note in the editor; nothing here
+// reads a file or touches the clipboard.
 Item {
   id: view
 
@@ -288,6 +288,7 @@ Item {
       selected: index === view.selected
       showSection: view.sectionKey === Model.ALL
       onActivated: view.host.copyItem(modelData)
+      onEditRequested: view.host.editItem(modelData)
       onTagClicked: function(tag) { view.filterByTag(tag) }
     }
   }

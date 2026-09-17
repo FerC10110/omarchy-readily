@@ -115,8 +115,8 @@ saved command into a terminal never runs it on its own. Images go to
 
 To copy an item back, click it or select it and press `Enter`. The panel closes
 and the item is on the clipboard, ready to paste. Readily does not paste for you.
-To edit what an item holds, select it and press `Ctrl+E`: its note opens in your
-text editor, where items are ordinary Markdown.
+To edit what an item holds, right-click it or select it and press `Ctrl+E`: its
+note opens in your text editor, where items are ordinary Markdown.
 
 ### Keys
 
