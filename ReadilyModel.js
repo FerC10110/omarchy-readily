@@ -186,3 +186,19 @@ function tildePath(path, home) {
   if (p === h) return "~"
   return p.indexOf(h + "/") === 0 ? "~" + p.slice(h.length) : p
 }
+
+// The number of bytes the text takes when encoded as UTF-8, which is what a
+// command reading a fixed count from stdin needs. A high surrogate is half of
+// one character (its low half follows) and is counted with it.
+function utf8Length(value) {
+  var s = text(value)
+  var count = 0
+  for (var i = 0; i < s.length; i++) {
+    var code = s.charCodeAt(i)
+    if (code >= 0xD800 && code < 0xDC00) { count += 4; i++ }
+    else if (code < 0x80) count += 1
+    else if (code < 0x800) count += 2
+    else count += 3
+  }
+  return count
+}

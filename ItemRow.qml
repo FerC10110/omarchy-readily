@@ -5,7 +5,7 @@ import "ReadilyModel.js" as Model
 
 // One item: its title, a line of description, the first lines of its content
 // (or a thumbnail) and its tags. A click on a tag filters by that tag; a click
-// anywhere else copies the item.
+// anywhere else copies the item; a right-click opens the note in the editor.
 Rectangle {
   id: row
 
@@ -15,6 +15,7 @@ Rectangle {
   property bool showSection: false
 
   signal activated()
+  signal editRequested()
   signal tagClicked(string tag)
 
   readonly property color fg: host ? host.foreground : Color.foreground
@@ -37,8 +38,13 @@ Rectangle {
     id: hover
     anchors.fill: parent
     hoverEnabled: true
+    acceptedButtons: Qt.LeftButton | Qt.RightButton
     cursorShape: row.usable ? Qt.PointingHandCursor : Qt.ArrowCursor
-    onClicked: if (row.usable) row.activated()
+    onClicked: function(mouse) {
+      if (!row.usable) return
+      if (mouse.button === Qt.RightButton) row.editRequested()
+      else row.activated()
+    }
   }
 
   Row {

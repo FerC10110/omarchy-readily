@@ -13,8 +13,9 @@ from .config import init_folder, registered_vaults, resolve_folder, suggestions,
 from .errors import CHANGED, NO_FOLDER, USAGE, ReadilyError
 from .notes import (TITLE_MAX, clean_title, first_line, render_image_item, render_text_item,
                     strip_trailing_newlines, truncate)
-from .store import (append_to_section, check_section_target, entries, item_hash, list_payload, read_section,
-                    section_names, section_path, write_attachment)
+from .store import (MAX_NOTE_BYTES, append_to_section, check_section_target, entries, item_hash,
+                    list_payload, read_note, read_section, section_names, section_path,
+                    write_attachment, write_note)
 from .tags import normalize_tags
 
 
@@ -131,6 +132,36 @@ def cmd_open(args):
         # xdg-open starts terminal editors such as nvim without a terminal, so nothing
         # shows up; Omarchy's launcher opens the editor the user picked, in a terminal.
         launch(path, shutil.which("omarchy-launch-editor") or "xdg-open")
+    return 0
+
+
+def cmd_read(args):
+    folder = require_folder()
+    if args.section not in section_names(folder):
+        raise ReadilyError(f"There is no section named {args.section}")
+    text, stamp = read_note(folder, args.section)
+    if args.json:
+        emit({"name": args.section, "text": text, "stamp": stamp})
+        return 0
+    sys.stdout.write(text)
+    return 0
+
+
+def cmd_write(args):
+    folder = require_folder()
+    if args.section not in section_names(folder):
+        raise ReadilyError(f"There is no section named {args.section}")
+    # With --bytes, exactly that many bytes are read: the panel's process never
+    # closes stdin, so there is no end-of-stream to read until.
+    raw = sys.stdin.buffer.read(args.bytes) if args.bytes else sys.stdin.buffer.read()
+    if len(raw) > MAX_NOTE_BYTES:
+        raise ReadilyError(f"The note would be larger than {human_size(MAX_NOTE_BYTES)}")
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise ReadilyError("The note is not UTF-8")
+    write_note(folder, args.section, text, args.expect)
+    print(f"Saved {args.section}")
     return 0
 
 
@@ -268,6 +299,19 @@ def build_parser():
     p = sub.add_parser("open", help="open a section in Obsidian (or your editor), or the folder")
     p.add_argument("section", metavar="SECTION", nargs="?")
     p.set_defaults(func=cmd_open)
+
+    p = sub.add_parser("read", help="print a section's note, with a stamp that write needs")
+    p.add_argument("section", metavar="SECTION")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_read)
+
+    p = sub.add_parser("write", help="replace a section's note with text from standard input")
+    p.add_argument("section", metavar="SECTION")
+    p.add_argument("--expect", metavar="STAMP", required=True,
+                   help="refuse if the note changed since it was read")
+    p.add_argument("--bytes", metavar="N", type=int, default=0,
+                   help="read exactly N bytes; default reads until end of stream")
+    p.set_defaults(func=cmd_write)
     return parser
 
 

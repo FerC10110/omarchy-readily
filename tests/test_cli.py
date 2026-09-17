@@ -126,6 +126,34 @@ class Reading(CliTest):
             self.assertEqual(cli.main(["open", "commands"]), 0)
         self.assertEqual(self.wait_for(os.path.join(self.box.clip, "opened")), os.path.realpath(path))
 
+    def test_read_returns_the_note_text_and_a_stamp(self):
+        body = note("## A", "```", "one", "```")
+        self.box.write("commands.md", body)
+        data = self.json("read", "--json", "--", "commands")
+        self.assertEqual(data, {"name": "commands", "text": body, "stamp": data["stamp"]})
+        self.assertRegex(data["stamp"], r"^[0-9a-f]{16}$")
+        self.assertEqual(self.ok("read", "--", "commands"), body)
+        self.assertIn("no section named nope", self.fails(1, "read", "nope"))
+
+    def test_write_replaces_the_note_and_refuses_a_changed_stamp(self):
+        self.box.write("commands.md", note("## A", "```", "one", "```"))
+        stamp = self.json("read", "--json", "--", "commands")["stamp"]
+        self.ok("write", "--expect=" + stamp, "--", "commands", stdin=b"## B\n")
+        self.assertEqual(self.box.read("commands.md"), "## B\n")
+        self.assertIn("changed since it was opened", self.fails(3, "write", "--expect=" + stamp,
+                                                               "--", "commands", stdin=b"x"))
+        self.assertEqual(self.box.read("commands.md"), "## B\n")
+        self.assertIn("no section named nope", self.fails(1, "write", "--expect=" + stamp, "nope"))
+
+    def test_write_reads_exactly_the_bytes_asked_for(self):
+        self.box.write("commands.md", "")
+        stamp = self.json("read", "--json", "--", "commands")["stamp"]
+        self.box.apply()
+        with mock.patch("sys.stdin") as fake:
+            fake.buffer.read.side_effect = lambda n: b"## C\nmore"[:n]
+            self.assertEqual(cli.main(["write", "--expect=" + stamp, "--bytes=5", "--", "commands"]), 0)
+        self.assertEqual(self.box.read("commands.md"), "## C\n")
+
 
 class Writing(CliTest):
     def test_save_text_from_the_clipboard_then_copy_it_back(self):

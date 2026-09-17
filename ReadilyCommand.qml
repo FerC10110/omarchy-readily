@@ -10,6 +10,7 @@ Item {
   property string program: ""
   property int timeoutMs: 5000
   property bool pending: false
+  property string stdinText: ""   // fed to the command's stdin when set
   readonly property bool running: pending
 
   signal finished(int code, string out, string err)
@@ -32,6 +33,7 @@ Item {
     _errDone = false
     _timedOut = false
     pending = true
+    proc.stdinEnabled = stdinText !== ""
     proc.command = [program].concat(args)
     proc.running = true
     watchdog.restart()
@@ -53,6 +55,13 @@ Item {
 
   Process {
     id: proc
+
+    // The note text goes over stdin, never argv. The buffer is emptied here so
+    // a following command that sets no stdinText starts with none.
+    onStarted: if (command.stdinText !== "") {
+      write(command.stdinText)
+      command.stdinText = ""
+    }
 
     stdout: StdioCollector {
       waitForEnd: true

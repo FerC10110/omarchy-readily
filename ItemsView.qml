@@ -4,8 +4,9 @@ import qs.Ui
 import "ReadilyModel.js" as Model
 
 // The list: section tabs, a search box that also filters by #tag, and the
-// items. Choosing an item asks the panel to copy it; nothing here reads a file
-// or touches the clipboard.
+// items. Choosing an item asks the panel to copy it, and right-clicking it or
+// pressing Ctrl+E asks the panel to open the note in Readily's editor; nothing
+// here reads a file or touches the clipboard.
 Item {
   id: view
 
@@ -129,6 +130,8 @@ Item {
       host.startSave()
     } else if (ctrl && event.key === Qt.Key_O) {
       host.openSection(openTarget)
+    } else if (ctrl && event.key === Qt.Key_E) {
+      if (rows[selected]) host.editItem(rows[selected])
     } else if (event.key === Qt.Key_Down) {
       moveSelection(1)
     } else if (event.key === Qt.Key_Up) {
@@ -285,6 +288,7 @@ Item {
       selected: index === view.selected
       showSection: view.sectionKey === Model.ALL
       onActivated: view.host.copyItem(modelData)
+      onEditRequested: view.host.editItem(modelData)
       onTagClicked: function(tag) { view.filterByTag(tag) }
     }
   }
