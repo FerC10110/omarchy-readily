@@ -59,8 +59,8 @@ https://staging.example.com/dashboard
 ````
 
 Readily only reads these notes and adds to the end of them. Edit, reorder or
-delete items in Obsidian or any text editor; the panel shows the change the next
-time it opens.
+delete items in Obsidian, any text editor, or Readily's built-in editor (below);
+the panel shows the change the next time it opens.
 
 How notes are read:
 
@@ -115,6 +115,15 @@ saved command into a terminal never runs it on its own. Images go to
 
 To copy an item back, click it or select it and press `Enter`. The panel closes
 and the item is on the clipboard, ready to paste. Readily does not paste for you.
+To edit what an item holds, right-click it or select it and press `Ctrl+E`: the
+note opens in a small floating editor, exactly as it is written on disk.
+
+The editor keeps the Markdown source of the note: one item per code block, the
+heading above it, its description and `#tags` around it. `Ctrl+S` saves,
+`Esc` closes (twice when there are unsaved edits), **Reload** discards edits and
+reads the note from disk again. Saving refuses when the note changed on disk
+since it was opened, so an editor or Obsidian saving at the same moment is never
+overwritten.
 
 ### Keys
 
@@ -129,6 +138,7 @@ In the list:
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | next / previous section |
 | `Ctrl+S` | save what is copied |
 | `Ctrl+O` | open the section (on All, the selected item's) in Obsidian; outside a vault, in the editor Omarchy uses |
+| `Ctrl+E` | open the selected item's note in the built-in editor |
 | `Esc` | clear the search; close when it is already empty |
 
 While saving:
@@ -179,6 +189,8 @@ readily save commands --title "Pods" --tag chi   # save what is copied
 some-command | readily save commands --stdin --create --tag chi
 readily copy commands 3 HASH         # HASH comes from `readily list --json`
 readily open commands                # open the note in Obsidian (or your editor)
+readily read commands                # print the note's Markdown source
+readily write commands --stdin       # replace the note; add --expect STAMP from `read --json`
 readily where                        # which folder is used and why
 readily init ~/Notes/Readily         # use another folder
 ```
@@ -213,7 +225,9 @@ The folder you choose is stored in `~/.config/readily/config.json`.
 - Anything a password manager marks as a password is refused, and so is text or
   an image over the size limits. Nothing is ever cut short.
 - Saving only appends to a note, through a temporary file renamed into place
-  under a lock. If the note changes while saving, Readily reads it again.
+  under a lock. If the note changes while saving, Readily reads it again. The
+  built-in editor saves the same way, and only when the note still matches the
+  copy it opened with.
 - Notes and attachments are only written inside the chosen folder, never
   through a symbolic link, and an existing attachment is never replaced.
   Outside that folder Readily writes only `~/.config/readily/config.json` and

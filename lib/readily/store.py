@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from .clipboard import human_size
 from .config import runtime_dir, vault_root
-from .errors import USAGE, ReadilyError
+from .errors import CHANGED, USAGE, ReadilyError
 from .notes import append_block, parse_note
 from .tags import tag_matches
 
@@ -135,6 +135,75 @@ def entries(folder, section):
         else:
             out.append(Entry(item))
     return out
+
+
+def read_note(folder, name):
+    """(text, stamp) of a section's note, with the checks listing uses.
+
+    The stamp is the hash of the note's bytes; writing requires it, so a note
+    that changed since it was opened is never overwritten.
+    """
+    path = section_path(folder, name)
+    if not inside(path, folder):
+        raise ReadilyError(f"{name}.md points outside the folder")
+    try:
+        if os.path.getsize(path) > MAX_NOTE_BYTES:
+            raise ReadilyError(f"{name}.md is larger than {human_size(MAX_NOTE_BYTES)}")
+        with open(path, "rb") as f:
+            raw = f.read()
+    except OSError as e:
+        raise ReadilyError(f"Cannot read {name}.md: {e.strerror or e}")
+    try:
+        return raw.decode("utf-8"), hashlib.sha256(raw).hexdigest()[:16]
+    except UnicodeDecodeError:
+        raise ReadilyError(f"{name}.md is not UTF-8 text")
+
+
+def write_note(folder, name, text, expected):
+    """Replace a section's note with text, refusing when it changed since it was read.
+
+    Like append_to_section, the new note is written to a temporary file next to
+    it and moved into place, and only if the note still carries the stamp that
+    `read` returned. After three changed attempts it gives up.
+    """
+    path = check_section_target(folder, name, False)
+    if len(text.encode("utf-8")) > MAX_NOTE_BYTES:
+        raise ReadilyError(f"{name}.md would be larger than {human_size(MAX_NOTE_BYTES)}")
+    with locked():
+        for _ in range(3):
+            if os.path.islink(path):
+                raise ReadilyError(f"{name}.md is a link; edit it in Obsidian")
+            before = _stamp(path)
+            if _note_hash(path) != expected:
+                raise ReadilyError(f"{name}.md changed since it was opened; reload it", CHANGED)
+            fd, tmp = tempfile.mkstemp(prefix=".readily-", suffix=".tmp", dir=folder)
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
+                    f.write(text)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.chmod(tmp, (before[2] & 0o777) if before else 0o644)
+                if _note_hash(path) != expected:
+                    os.unlink(tmp)
+                    continue
+                if os.path.islink(path):
+                    raise ReadilyError(f"{name}.md is a link; edit it in Obsidian")
+                os.replace(tmp, path)
+                return path
+            except BaseException:
+                if os.path.exists(tmp):
+                    os.unlink(tmp)
+                raise
+    raise ReadilyError(f"Could not save: {name}.md keeps changing")
+
+
+def _note_hash(path):
+    """The hash read_note stamps notes with, or None when the note is gone."""
+    try:
+        with open(path, "rb") as f:
+            return hashlib.sha256(f.read()).hexdigest()[:16]
+    except OSError:
+        return None
 
 
 def item_hash(item):

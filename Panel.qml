@@ -138,6 +138,12 @@ Panel {
     copyCmd.start(["copy", "--", row.section, String(row.item.index), row.item.hash])
   }
 
+  // Right-click or Ctrl+E on an entry: the section's note in the built-in editor.
+  function editItem(row) {
+    if (!row || row.item.missing === true) return
+    noteEditor.openSection(row.section)
+  }
+
   function openSection(name) {
     if (!name || name === Model.ALL || openCmd.running) return
     openCmd.start(["open", "--", name])
@@ -321,6 +327,12 @@ Panel {
       visible: root.view === "save"
       host: root
     }
+  }
+
+  // The floating editor for one section's note, over the whole screen.
+  NoteEditor {
+    id: noteEditor
+    host: root
   }
 
   // Opened from the bar icon: the card drops down from it.
