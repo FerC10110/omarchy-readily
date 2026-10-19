@@ -14,6 +14,7 @@ from .tags import find_tags, frontmatter_tags, is_tag_line, strip_trailing_tags,
 TITLE_MAX = 60
 TITLE_WRITE_MAX = 120
 DESCRIPTION_MAX = 200
+DESCRIPTION_WRITE_MAX = 2000
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".gif")
 
 _FENCE = re.compile(r"^( {0,3})(`{3,}|~{3,})(.*)$")
@@ -21,6 +22,7 @@ _HEADING = re.compile(r"^ {0,3}#{1,6}(?:[ \t]+(.*?))?[ \t]*$")
 _CLOSING_HASHES = re.compile(r"(?:^|[ \t]+)#+[ \t]*$")
 _MD_IMAGE = re.compile(r'^\s*!\[[^\]]*\]\(\s*<?([^)>\s]+)>?(?:\s+"[^"]*")?\s*\)\s*$')
 _WIKI_IMAGE = re.compile(r"^\s*!\[\[([^\]|#]+)(?:[|#][^\]]*)?\]\]\s*$")
+_ESCAPED = re.compile(r"^\\([#`~!\-=*_])")
 _SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 
 
@@ -160,7 +162,8 @@ def parse_note(text):
         if stripped:
             line_tags = unique(line_tags + find_tags(stripped))
             if not is_tag_line(stripped):
-                description.append(stripped)
+                # A backslash kept a line from starting a heading, block, image or rule.
+                description.append(_ESCAPED.sub(r"\1", stripped))
         i += 1
     return note
 
@@ -187,13 +190,38 @@ def _heading_lines(title, tags):
     return lines
 
 
-def render_text_item(title, tags, content):
+_RULE = re.compile(r"^(?:-{3,}|={3,}|\*{3,}|_{3,}|(?:- ?){3,})$")
+
+
+def _description_lines(description):
+    """The description as loose lines under the heading: no indent (it would
+    be a code block), one blank line at most between paragraphs, and a
+    backslash before any line that would otherwise start a heading, a block,
+    an image or a rule, so the note keeps one item."""
+    lines = []
+    for raw in (description or "").replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        line = raw.strip()
+        if not line:
+            if lines and lines[-1]:
+                lines.append("")
+            continue
+        if _HEADING.match(line) or _FENCE.match(line) or _image_ref(line) or _RULE.match(line):
+            line = "\\" + line
+        lines.append(line)
+    while lines and not lines[-1]:
+        lines.pop()
+    return lines
+
+
+def render_text_item(title, tags, content, description=""):
     fence = fence_for(content)
-    return "\n".join(_heading_lines(title, tags) + [fence, content, fence]) + "\n"
+    return "\n".join(_heading_lines(title, tags) + _description_lines(description)
+                     + [fence, content, fence]) + "\n"
 
 
-def render_image_item(title, tags, relpath):
-    return "\n".join(_heading_lines(title, tags) + ["![](" + quote(relpath) + ")"]) + "\n"
+def render_image_item(title, tags, relpath, description=""):
+    return "\n".join(_heading_lines(title, tags) + _description_lines(description)
+                     + ["![](" + quote(relpath) + ")"]) + "\n"
 
 
 def _unclosed_fence(text):

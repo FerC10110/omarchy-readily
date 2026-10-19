@@ -11,7 +11,7 @@ from urllib.parse import quote
 from . import clipboard
 from .config import init_folder, registered_vaults, resolve_folder, suggestions, vault_root
 from .errors import CHANGED, NO_FOLDER, USAGE, ReadilyError
-from .notes import (TITLE_MAX, clean_title, first_line, render_image_item, render_text_item,
+from .notes import (DESCRIPTION_WRITE_MAX, TITLE_MAX, clean_title, first_line, render_image_item, render_text_item,
                     strip_trailing_newlines, truncate)
 from .store import (append_to_section, check_section_target, entries, item_hash, list_payload, read_section,
                     section_names, section_path, write_attachment)
@@ -168,6 +168,9 @@ def _stdin_clip():
 
 def cmd_save(args):
     tags = wanted_tags(args.tag)
+    description = args.description or ""
+    if len(description) > DESCRIPTION_WRITE_MAX:
+        raise ReadilyError(f"The description is too long (at most {DESCRIPTION_WRITE_MAX} characters)", USAGE)
     folder = require_folder()
     check_section_target(folder, args.section, args.create)
     if args.stdin:
@@ -184,13 +187,15 @@ def cmd_save(args):
         if not content.strip():
             raise ReadilyError("Nothing to save")
         title = title or truncate(first_line(content), TITLE_MAX)
-        append_to_section(folder, args.section, render_text_item(title, tags, content), args.create)
+        append_to_section(folder, args.section, render_text_item(title, tags, content, description),
+                          args.create)
     else:
         when = datetime.datetime.now()
         title = title or f"Image {when:%Y-%m-%d %H:%M}"
         relpath = write_attachment(folder, args.section, clip.data, clip.extension, when)
         try:
-            append_to_section(folder, args.section, render_image_item(title, tags, relpath), args.create)
+            append_to_section(folder, args.section, render_image_item(title, tags, relpath, description),
+                              args.create)
         except BaseException:
             os.unlink(os.path.join(folder, relpath))
             raise
@@ -254,6 +259,8 @@ def build_parser():
     p.add_argument("section", metavar="SECTION")
     p.add_argument("--title", default="", help="defaults to the first line of the text")
     p.add_argument("--tag", action="append", metavar="TAG", help="repeatable")
+    p.add_argument("--description", default="", metavar="TEXT",
+                   help="text under the title, describing the item")
     p.add_argument("--create", action="store_true", help="create the section if it does not exist")
     p.add_argument("--expect", metavar="HASH", help="refuse if the clipboard no longer matches `peek`")
     p.add_argument("--stdin", action="store_true", help="save text from standard input instead")

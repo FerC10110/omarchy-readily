@@ -176,6 +176,18 @@ class Writing(CliTest):
         self.assertEqual(self.box.read("commands.md"),
                          "## docker compose up -d\n```\n\n  docker compose up -d\nsecond\n```\n")
 
+    def test_save_with_a_description(self):
+        self.ok("save", "--create", "--stdin", "--title=Logs", "--tag=docker",
+                "--description=Last 100 lines.\nAdd -f to follow.", "commands", stdin=b"docker logs --tail 100 x")
+        self.assertEqual(self.box.read("commands.md"),
+                         "## Logs\n#docker\nLast 100 lines.\nAdd -f to follow.\n```\ndocker logs --tail 100 x\n```\n")
+        item = self.json("list", "--json")["sections"][0]["items"][0]
+        self.assertEqual(item["description"], "Last 100 lines. Add -f to follow.")
+
+    def test_a_description_is_for_text_and_has_a_limit(self):
+        self.assertIn("too long", self.fails(2, "save", "--create", "--stdin", "--description=" + "x" * 2001,
+                                             "commands", stdin=b"ls"))
+
     def test_title_starting_with_a_dash(self):
         self.ok("save", "--create", "--stdin", "--title=-la flag", "commands", stdin=b"ls -la")
         self.assertTrue(self.box.read("commands.md").startswith("## -la flag\n"))
