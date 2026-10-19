@@ -114,7 +114,8 @@ class Writing(unittest.TestCase):
         self.assertEqual(len(items), 1)
         self.assertEqual((items[0].title, items[0].content), ("Pods", "kubectl get pods"))
         self.assertIn("First line", items[0].description)
-        self.assertIn("not a heading", items[0].description)
+        self.assertIn("First line # not a heading", items[0].description)
+        self.assertNotIn("\\", items[0].description)
         self.assertNotIn("\n\n\n", block)
 
     def test_a_blank_description_adds_nothing(self):

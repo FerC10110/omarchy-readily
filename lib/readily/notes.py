@@ -22,6 +22,7 @@ _HEADING = re.compile(r"^ {0,3}#{1,6}(?:[ \t]+(.*?))?[ \t]*$")
 _CLOSING_HASHES = re.compile(r"(?:^|[ \t]+)#+[ \t]*$")
 _MD_IMAGE = re.compile(r'^\s*!\[[^\]]*\]\(\s*<?([^)>\s]+)>?(?:\s+"[^"]*")?\s*\)\s*$')
 _WIKI_IMAGE = re.compile(r"^\s*!\[\[([^\]|#]+)(?:[|#][^\]]*)?\]\]\s*$")
+_ESCAPED = re.compile(r"^\\([#`~!\-=*_])")
 _SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 
 
@@ -161,7 +162,8 @@ def parse_note(text):
         if stripped:
             line_tags = unique(line_tags + find_tags(stripped))
             if not is_tag_line(stripped):
-                description.append(stripped)
+                # A backslash kept a line from starting a heading, block, image or rule.
+                description.append(_ESCAPED.sub(r"\1", stripped))
         i += 1
     return note
 
