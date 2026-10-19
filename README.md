@@ -177,6 +177,7 @@ readily list --tag chi               # only items tagged #chi (or #chi/...)
 readily tags                         # every tag and how many items have it
 readily save commands --title "Pods" --tag chi   # save what is copied
 some-command | readily save commands --stdin --create --tag chi
+readily save commands --title "Pods" --description "Only on the VPN."   # with a note under the title
 readily copy commands 3 HASH         # HASH comes from `readily list --json`
 readily open commands                # open the note in Obsidian (or your editor)
 readily where                        # which folder is used and why
@@ -185,6 +186,10 @@ readily init ~/Notes/Readily         # use another folder
 
 Every command takes `-h`, and `list`, `tags`, `where`, `vaults` and `peek` take
 `--json`.
+
+`--description` writes its text under the title, where Readily reads an
+item's description. Lines that would start a heading, a code block, an image
+or a rule get a backslash, so the note keeps a single item.
 
 ## Configuration
 

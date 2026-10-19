@@ -100,6 +100,26 @@ class Writing(unittest.TestCase):
     def test_no_tag_line_without_tags(self):
         self.assertEqual(render_text_item("Pods", [], "x"), "## Pods\n```\nx\n```\n")
 
+    def test_render_with_a_description(self):
+        self.assertEqual(render_text_item("Pods", ["k8s"], "kubectl get pods", "Only on the VPN."),
+                         "## Pods\n#k8s\nOnly on the VPN.\n```\nkubectl get pods\n```\n")
+        item = parse_note(render_text_item("Pods", ["k8s"], "kubectl get pods", "Only on the VPN.")).items[0]
+        self.assertEqual((item.title, item.description, item.tags, item.content),
+                         ("Pods", "Only on the VPN.", ["k8s"], "kubectl get pods"))
+
+    def test_a_description_cannot_break_the_note(self):
+        description = "First line\n# not a heading\n```\n![x](y.png)\n---\n\n\n\nlast"
+        block = render_text_item("Pods", [], "kubectl get pods", description)
+        items = parse_note(block).items
+        self.assertEqual(len(items), 1)
+        self.assertEqual((items[0].title, items[0].content), ("Pods", "kubectl get pods"))
+        self.assertIn("First line", items[0].description)
+        self.assertIn("not a heading", items[0].description)
+        self.assertNotIn("\n\n\n", block)
+
+    def test_a_blank_description_adds_nothing(self):
+        self.assertEqual(render_text_item("Pods", [], "x", "  \n "), "## Pods\n```\nx\n```\n")
+
     def test_fence_grows_past_backticks_in_content(self):
         self.assertEqual(fence_for("a ``` b"), "````")
         self.assertEqual(fence_for("plain"), "```")
